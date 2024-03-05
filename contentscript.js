@@ -1,38 +1,53 @@
+const eeoFields = {
+  gender: "Male",
+  race: "Asian (Not Hispanic or Latino)",
+  veteran: "I am not a veteran",
+};
+
+const fetchUserDetails = async (token) => {
+  try {
+    const response = await fetch("http://localhost:3000/user", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    return data?.user;
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+console.log("Content Script Running");
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log(message);
-  if (message.action === "fetchInputFields") {
-    const inputFields = document.querySelectorAll("input");
-    const inputValues = [];
-    inputFields.forEach((field) => {
-      inputValues.push(field.value);
-    });
-    console.log(inputValues);
-    sendResponse(inputValues);
-  }
   if (message.action === "fillInputFields") {
-    const { values, eeoValues, urlsData } = message;
-    Object.keys(values)?.forEach((name) => {
-      const field = document.querySelector(`input[name=${name}]`);
-      if (field) {
-        field.value = values[name];
-      }
+    console.log("Filling input fields");
+    fetchUserDetails(message.data).then((data) => {
+      const urlsData = data?.urls;
+      const values = data;
+      Object.keys(values)?.forEach((name) => {
+        const field = document.querySelector(`input[name=${name}]`);
+        if (field) {
+          field.value = values[name];
+        }
+      });
+      console.log(urlsData);
+      urlsData?.forEach((url, index) => {
+        const urlField = document.querySelector(
+          `input[name='urls[${url.type}]']`
+        );
+        console.log(urlField);
+        if (urlField) {
+          urlField.value = url.url;
+        }
+      });
+      Object.keys(eeoValues)?.forEach((name) => {
+        const field = document.querySelector(`select[name='eeo[${name}]']`);
+        if (field) {
+          field.value = eeoValues[name];
+        }
+      });
     });
-    console.log(urlsData);
-    urlsData?.forEach((url, index) => {
-      const urlField = document.querySelector(
-        `input[name='urls[${url.type}]']`
-      );
-      console.log(urlField);
-      if (urlField) {
-        urlField.value = url.url;
-      }
-    });
-    Object.keys(eeoValues)?.forEach((name) => {
-      const field = document.querySelector(`select[name='eeo[${name}]']`);
-      if (field) {
-        field.value = eeoValues[name];
-      }
-    });
+    return true;
   }
 });
 
@@ -57,8 +72,13 @@ document.addEventListener("DOMContentLoaded", function () {
     };
     loginUser().then((data) => {
       console.log(data);
-      localStorage.setItem("token", data.token);
       chrome.runtime.sendMessage({ action: "AddToken", token: data.token });
+      chrome.runtime.sendMessage({
+        action: "newTab",
+        url: "http://localhost:3000/dashboard",
+        token: data.token,
+      });
+      chrome.runtime.sendMessage({ action: "closeTab" });
     });
   });
 });
