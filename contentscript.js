@@ -6,7 +6,7 @@ const eeoFields = {
 
 const fetchUserDetails = async (token) => {
   try {
-    const response = await fetch("http://localhost:3000/user", {
+    const response = await fetch("http://localhost:5000/user", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();
@@ -51,34 +51,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-document.addEventListener("DOMContentLoaded", function () {
-  const submitButton = document.getElementById("submitButton");
-  console.log(submitButton);
+// document.addEventListener("DOMContentLoaded", function () {
+//   const submitButton = document.getElementById("submitButton");
+//   console.log(submitButton);
 
-  submitButton.addEventListener("click", function (event) {
-    event.preventDefault();
-    const email = document.querySelector("input[name=email").value;
-    const password = document.querySelector("input[name=password").value;
-    const loginUser = async () => {
-      const response = await fetch("http://localhost:3000/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      return data;
-    };
-    loginUser().then((data) => {
-      console.log(data);
-      chrome.runtime.sendMessage({ action: "AddToken", token: data.token });
-      chrome.runtime.sendMessage({
-        action: "newTab",
-        url: "http://localhost:3000/dashboard",
-        token: data.token,
-      });
-      chrome.runtime.sendMessage({ action: "closeTab" });
-    });
-  });
-});
+//   submitButton.addEventListener("click", function (event) {
+//     event.preventDefault();
+//     const email = document.querySelector("input[name=email").value;
+//     const password = document.querySelector("input[name=password").value;
+//     const loginUser = async () => {
+//       const response = await fetch("http://localhost:3000/login", {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify({ email, password }),
+//       });
+//       const data = await response.json();
+//       return data;
+//     };
+//     loginUser().then((data) => {
+//       console.log(data);
+//       chrome.runtime.sendMessage({ action: "AddToken", token: data.token });
+//       chrome.runtime.sendMessage({
+//         action: "newTab",
+//         url: "http://localhost:3000/dashboard",
+//         token: data.token,
+//       });
+//       chrome.runtime.sendMessage({ action: "closeTab" });
+//     });
+//   });
+// });

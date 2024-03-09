@@ -34,3 +34,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   return true;
 });
+chrome.runtime.onMessageExternal.addListener(
+  (message, sender, sendResponse) => {
+    if (message.action === "AddToken") {
+      chrome.storage.local.set({ token: message.token }, () => {
+        console.log("Token is set");
+      });
+    }
+    if (message.action === "fetchToken") {
+      chrome.storage.local.get("token", (data) => {
+        const token = data.token;
+        if (token) {
+          sendResponse(token);
+        } else {
+          sendResponse(null);
+        }
+      });
+    }
+  }
+);

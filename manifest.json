@@ -22,5 +22,8 @@
           "run_at":"document_start",
           "js": ["contentscript.js"]
         }
-    ]
+    ],
+    "externally_connectable": {
+        "matches": ["http://localhost:3000/*"]
+      }
 }

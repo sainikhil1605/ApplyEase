@@ -5,7 +5,7 @@ const AddUser = async (req, res) => {
 };
 const getUserDetails = async (req, res) => {
   //   const user = await User.findById(req.params.id);
-  const user = await User.findById(req.user._id);
+  const user = await User.findById(req.user._id).select("-password");
   res.status(200).json({ user });
 };
 const login = async (req, res) => {

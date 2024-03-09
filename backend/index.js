@@ -19,21 +19,6 @@ app.use(
 );
 const port = process.env.PORT || 3000;
 
-app.get("/login", (req, res) => {
-  fs.readFile("./static/login/login.html", (err, data) => {
-    if (err) {
-      res.status(404).send("404 Not Found");
-      return;
-    }
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.write(data);
-    res.end();
-  });
-});
-app.get("/dashboard", authMiddleware, (req, res) => {
-  const data = getUserDetails(req, res);
-  res.send(require("./static/dashboard/dashboard.html"));
-});
 app.use("/", require("./router/User"));
 
 const startServer = async () => {
