@@ -20,7 +20,6 @@ app.use(
 const port = process.env.PORT || 3000;
 
 app.use("/", require("./router/User"));
-
 const startServer = async () => {
   try {
     await connectDB(process.env.MONGO_URI);

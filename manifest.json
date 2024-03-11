@@ -6,6 +6,12 @@
     "action":{
         "default_popup":"popup/popup.html",
         "default_title":"Apple Ease"
+      
+    },
+    "icons":{
+        "16": "popup/icon2.png",
+        "48": "popup/icon2.png",
+        "128": "popup/icon2.png"
     },
     "background": {
         "service_worker": "background.js"

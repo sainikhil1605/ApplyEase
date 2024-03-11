@@ -1,4 +1,10 @@
 const User = require("../models/User");
+const handleUpload = (req) => {
+  if (!req.body.resume) {
+    return null;
+  }
+  const resume = req.body.resume;
+};
 const AddUser = async (req, res) => {
   const user = await User.create(req.body);
   res.status(201).json({ user });
@@ -6,6 +12,17 @@ const AddUser = async (req, res) => {
 const getUserDetails = async (req, res) => {
   //   const user = await User.findById(req.params.id);
   const user = await User.findById(req.user._id).select("-password");
+  res.status(200).json({ user });
+};
+const updateUserDetails = async (req, res) => {
+  req.body = {
+    ...req.body,
+    ...(req.body.urls && { urls: req.body.urls.map((url) => JSON.parse(url)) }),
+  };
+  const user = await User.findByIdAndUpdate(req.user._id, {
+    ...req.body,
+    ...(req?.file?.path && { resume: req.file.path }),
+  });
   res.status(200).json({ user });
 };
 const login = async (req, res) => {
@@ -23,4 +40,4 @@ const login = async (req, res) => {
     res.status(200).json({ token });
   }
 };
-module.exports = { AddUser, getUserDetails, login };
+module.exports = { AddUser, getUserDetails, login, updateUserDetails };

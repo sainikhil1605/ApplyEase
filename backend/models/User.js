@@ -45,10 +45,32 @@ const userSchema = new mongoose.Schema({
   location: {
     type: String,
   },
+  resume: {
+    type: String,
+  },
   urls: [urlSchema],
   eeo: [eeoSchema],
 });
+
 userSchema.pre("save", async function (next) {
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, "uploads/");
+    },
+    filename: function (req, file, cb) {
+      cb(
+        null,
+        file.fieldname + "-" + Date.now() + path.extname(file.originalname)
+      );
+    },
+  });
+
+  // Initialize multer upload
+  const upload = multer({ storage: storage });
+  console.log(this.resume);
+  if (this.resume) {
+    upload.single("file");
+  }
   const salt = await bycrypt.genSalt(10);
   this.password = await bycrypt.hash(this.password, salt);
   next();
