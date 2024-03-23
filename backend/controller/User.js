@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const path = require("path");
 const handleUpload = (req) => {
   if (!req.body.resume) {
     return null;
@@ -40,4 +41,21 @@ const login = async (req, res) => {
     res.status(200).json({ token });
   }
 };
-module.exports = { AddUser, getUserDetails, login, updateUserDetails };
+const getResume = async (req, res) => {
+  const user = await User.findById(req.user._id);
+  const resumeUrl = `${user.resume}`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", "attachment; filename=file.pdf");
+
+  // Send the PDF file as response
+  res.sendFile(path.resolve(resumeUrl));
+
+  // res.status(200).json({ resume: user.resume });
+};
+module.exports = {
+  AddUser,
+  getUserDetails,
+  login,
+  updateUserDetails,
+  getResume,
+};

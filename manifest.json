@@ -3,6 +3,7 @@
     "version":"1.0",
     "description":"An Extension to apply jobs with ease",
     "manifest_version":3,
+    "type":"module",
     "action":{
         "default_popup":"popup/popup.html",
         "default_title":"Apple Ease"

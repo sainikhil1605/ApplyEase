@@ -8,10 +8,12 @@ document.addEventListener("DOMContentLoaded", () => {
     (token) => {
       if (token) {
         document.getElementById("auto-fill").innerHTML = "Auto Fill";
-
+        document.getElementById("filling-text").style.display = "none";
+        document.getElementById("loading-gif").style.display = "none";
         const button = document.getElementById("auto-fill");
         document.addEventListener("click", () => {
-          console.log("Button clicked");
+          document.getElementById("filling-text").style.display = "block";
+          document.getElementById("loading-gif").style.display = "block";
           chrome.tabs.query(
             { active: true, currentWindow: true },
             async (tabs) => {
@@ -23,6 +25,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 (response) => {
                   console.log(response);
+                  document.getElementById("filling-text").style.display =
+                    "none";
+                  document.getElementById("loading-gif").style.display = "none";
                 }
               );
             }
