@@ -4,6 +4,7 @@ const {
   login,
   updateUserDetails,
   getResume,
+  generateCustomAnswer,
 } = require("../controller/User");
 const authMiddleware = require("../middleware/auth");
 const uploadMiddleware = require("../middleware/multerUpload");
@@ -19,5 +20,6 @@ router.patch(
   uploadMiddleware.single("resume"),
   updateUserDetails
 );
+router.post("/custom-answer", authMiddleware, generateCustomAnswer);
 router.get("/resume", authMiddleware, getResume);
 module.exports = router;

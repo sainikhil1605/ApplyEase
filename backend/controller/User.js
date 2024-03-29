@@ -1,5 +1,14 @@
 const User = require("../models/User");
 const path = require("path");
+const OpenAI = require("openai");
+const fs = require("fs");
+
+// const PdfReader = require("pdfreader").PdfReader;
+const PDFParser = require("pdf2json");
+const { API_KEY } = process.env;
+const client = new OpenAI({
+  apiKey: API_KEY,
+});
 const handleUpload = (req) => {
   if (!req.body.resume) {
     return null;
@@ -52,10 +61,45 @@ const getResume = async (req, res) => {
 
   // res.status(200).json({ resume: user.resume });
 };
+const generateCustomAnswer = async (req, res) => {
+  const { jobDescription, applicationQuestion } = req.body;
+  const resume_path = (await User.findById(req.user._id)).resume;
+  console.log(resume_path);
+  // const resume = fs.readFileSync(path.resolve(resume_path));
+  let parsedResume = "";
+  var pdfParser = new PDFParser(this, 1);
+  pdfParser.on("pdfParser_dataReady", async (data) => {
+    parsedResume = pdfParser.getRawTextContent();
+    try {
+      const messages = [
+        {
+          role: "user",
+          content: `The resume is : ${parsedResume} Job description is: ${jobDescription} Question is: ${applicationQuestion}\n`,
+        },
+      ];
+
+      const params = {
+        model: "gpt-3.5-turbo-0125",
+        messages,
+      };
+
+      // const response = await client.chat.completions.create(params);
+      // console.log(response.choices[0].message);
+      // const answer = response.choices[0].message;
+      // return res.status(200).json(answer.content);
+      return res.status(200).json("Hello");
+    } catch (error) {
+      console.error("Error:", error);
+      return null;
+    }
+  });
+  pdfParser.loadPDF(path.resolve(resume_path));
+};
 module.exports = {
   AddUser,
   getUserDetails,
   login,
   updateUserDetails,
   getResume,
+  generateCustomAnswer,
 };

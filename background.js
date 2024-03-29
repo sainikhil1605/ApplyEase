@@ -32,8 +32,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       active: true,
     });
   }
+  if (message.action === "getTabUrl") {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      sendResponse(tabs[0].url);
+    });
+  }
   return true;
 });
+
 chrome.runtime.onMessageExternal.addListener(
   (message, sender, sendResponse) => {
     if (message.action === "AddToken") {

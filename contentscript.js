@@ -72,8 +72,49 @@ const uploadFile = (field, file) => {
   });
   field.dispatchEvent(event);
 };
+const getJobDescription = () => {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: "getTabUrl" }, async (response) => {
+      try {
+        const tabUrl = response;
+        const urlStripped = tabUrl.split("/");
+        urlStripped.pop();
+        jobUrl = urlStripped.join("/");
+        const res = await (await fetch(jobUrl)).text();
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = res;
+        const jobDescription = tempDiv.querySelector(
+          "[data-qa='job-description']"
+        );
+        resolve(jobDescription.textContent);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+};
+const autoFillCustomAnswer = async (
+  jobDescription,
+  applicationQuestion,
+  token
+) => {
+  const response = await fetch("http://localhost:5000/custom-answer", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      jobDescription,
+      applicationQuestion,
+    }),
+  });
+  const data = await response.json();
+  return data;
+};
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "fillInputFields") {
+    const token = message.data;
     fetchUserDetails(message.data).then((data) => {
       const values = data;
       const nameField = document.querySelector("input[name='name']");
@@ -90,7 +131,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Find the field by name
         if (field.name) {
           if (field.type === "file") {
-            // uploadFile(field, values[field.name] || null);
+            uploadFile(field, values[field.name] || null);
           } else {
             setField(values, field, field.name);
           }
@@ -102,7 +143,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               `label[for=${field.id}]`
             )?.textContent;
             if (field.type === "file" && label.toLowerCase() === "resume") {
-              // uploadFile(field, values.resume || null);
+              uploadFile(field, values.resume || null);
             } else if (
               label.toLowerCase() === "name" ||
               label.toLowerCase() === "full name"
@@ -116,13 +157,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
       });
-
-      // Object.keys(eeoValues)?.forEach((name) => {
-      //   const field = document.querySelector(`select[name='eeo[${name}]']`);
-      //   if (field) {
-      //     field.value = eeoValues[name];
-      //   }
-      // });
+      const textAreas = Array.from(document.querySelectorAll("textarea"));
+      textAreas?.forEach((field) => {
+        try {
+          const label = field.closest("label");
+          const btn = document.createElement("button");
+          btn.textContent = "Fill";
+          btn.addEventListener("click", async (e) => {
+            const label = field.closest("label");
+            const applicationQuestion = label.textContent;
+            const jobDescription = await getJobDescription();
+            console.log(jobDescription);
+            const ans = await autoFillCustomAnswer(
+              jobDescription,
+              applicationQuestion,
+              token
+            );
+            field.value = ans;
+          });
+          label.appendChild(btn);
+          console.log(field.closest("label").textContent);
+        } catch (e) {
+          console.log(e);
+        }
+      });
     });
     return true;
   }

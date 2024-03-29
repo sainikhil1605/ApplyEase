@@ -6,6 +6,7 @@ const connectDB = require("./db/connectDB");
 const authMiddleware = require("./middleware/auth");
 const { getUserDetails } = require("./controller/User");
 const session = require("express-session");
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -17,7 +18,8 @@ app.use(
     saveUninitialized: true,
   })
 );
-const port = process.env.PORT || 3000;
+const { API_KEY, PORT } = process.env;
+const port = PORT || 3000;
 
 app.use("/", require("./router/User"));
 const startServer = async () => {
