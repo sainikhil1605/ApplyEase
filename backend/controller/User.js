@@ -83,11 +83,11 @@ const generateCustomAnswer = async (req, res) => {
         messages,
       };
 
-      // const response = await client.chat.completions.create(params);
-      // console.log(response.choices[0].message);
-      // const answer = response.choices[0].message;
-      // return res.status(200).json(answer.content);
-      return res.status(200).json("Hello");
+      const response = await client.chat.completions.create(params);
+      console.log(response.choices[0].message);
+      const answer = response.choices[0].message;
+      return res.status(200).json(answer.content);
+      // return res.status(200).json("Hello");
     } catch (error) {
       console.error("Error:", error);
       return null;
