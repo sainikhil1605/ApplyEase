@@ -1,0 +1,29 @@
+#auto-fill{
+    z-index: 1000;
+    background-color: #36789c;
+    color:#fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-shadow: 0 0 5px 0 rgba(0,0,0,0.2);
+    width: 50%;
+    max-height: 200px;
+    overflow-y: auto;
+    margin:20px;
+}
+.container{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+}
+.textarea-fill-btn{
+    background-color: #36789c;
+    color:#fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 5px;
+    margin: 5px;
+    cursor: pointer;
+}

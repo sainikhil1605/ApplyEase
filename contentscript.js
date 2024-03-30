@@ -130,10 +130,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       inputFields?.forEach((field) => {
         // Find the field by name
         if (field.name) {
-          if (field.type === "file") {
-            uploadFile(field, values[field.name] || null);
-          } else {
-            setField(values, field, field.name);
+          try {
+            if (field.type === "file") {
+              uploadFile(field, values[field.name] || null);
+            } else {
+              setField(values, field, field.name);
+            }
+          } catch (e) {
+            console.log(e);
           }
         }
         // Find the field by id
@@ -163,8 +167,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const label = field.closest("label");
           const btn = document.createElement("button");
           btn.textContent = "Fill";
+          btn.className = "textarea-fill-btn";
+          btn.style.cssText =
+            "background: #36789c; color: white; padding: 10px 24px; border: none; cursor: pointer; border-radius: 5px; margin: 10px 0;";
+
           btn.addEventListener("click", async (e) => {
+            e.preventDefault();
             const label = field.closest("label");
+            btn.textContent = "Filling...";
             const applicationQuestion = label.textContent;
             const jobDescription = await getJobDescription();
             console.log(jobDescription);
@@ -174,6 +184,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               token
             );
             field.value = ans;
+            btn.textContent = "Filled";
           });
           label.appendChild(btn);
           console.log(field.closest("label").textContent);
