@@ -10,3 +10,5 @@ This Chrome extension is designed to eliminate the monotony of filling out job a
 
 https://github.com/sainikhil1605/ApplyEase/assets/35322884/308d44fa-84ce-40c1-8b29-5bc877ba739c
 
+![image](https://github.com/sainikhil1605/ApplyEase/assets/35322884/b64d7605-7dbe-4806-9d2f-f13fb50aa161)
+![image](https://github.com/sainikhil1605/ApplyEase/assets/35322884/a89ef918-87fe-4867-9f30-c9ba537429ad)
