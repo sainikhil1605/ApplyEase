@@ -9,6 +9,7 @@ This Chrome extension is designed to eliminate the monotony of filling out job a
 4) Utilizes the OpenAI API to craft personalized answers that make your application stand out.
 
 https://github.com/sainikhil1605/ApplyEase/assets/35322884/308d44fa-84ce-40c1-8b29-5bc877ba739c
+<img width="677" height="706" alt="image" src="https://github.com/user-attachments/assets/916adab8-8417-47f8-a611-9e1f5d27486c" />
 
 ![image](https://github.com/sainikhil1605/ApplyEase/assets/35322884/b64d7605-7dbe-4806-9d2f-f13fb50aa161)
 ![image](https://github.com/sainikhil1605/ApplyEase/assets/35322884/a89ef918-87fe-4867-9f30-c9ba537429ad)
