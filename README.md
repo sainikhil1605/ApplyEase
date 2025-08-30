@@ -4,6 +4,8 @@ Overview
 
 - Auto‑fills common job application fields (first/last name, email, phone, links) and uploads your resume.
 - Computes a Resume ↔ Job Description match score with tech‑term highlights (matching/missing keywords).
+- <img width="416" height="661" alt="image" src="https://github.com/user-attachments/assets/a02d9cf1-a874-4732-94d6-0380c93fde44" />
+
 - Generates concise custom answers to application questions using a local LLM (no paid APIs).
 - Works via a Chrome extension with a small React dashboard and a FastAPI backend.
 
