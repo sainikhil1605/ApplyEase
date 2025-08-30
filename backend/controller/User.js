@@ -33,6 +33,37 @@ const updateUserDetails = async (req, res) => {
     ...req.body,
     ...(req?.file?.path && { resume: req.file.path }),
   });
+  // Fire-and-forget: if resume uploaded, parse and upsert embedding to Python FAISS service
+  try {
+    const resumePath = req?.file?.path;
+    if (resumePath) {
+      const PDFParser = require("pdf2json");
+      const parser = new PDFParser(this, 1);
+      parser.on("pdfParser_dataReady", async () => {
+        try {
+          const resumeText = parser.getRawTextContent();
+          if (typeof fetch === "function") {
+            await fetch("http://localhost:8000/upsert_resume", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                user_id: String(req.user._id),
+                resume_text: resumeText,
+              }),
+            });
+          }
+        } catch (e) {
+          console.error("Failed to upsert resume embedding:", e);
+        }
+      });
+      parser.on("pdfParser_dataError", (err) => {
+        console.error("PDF parse error:", err);
+      });
+      parser.loadPDF(path.resolve(resumePath));
+    }
+  } catch (e) {
+    console.error(e);
+  }
   res.status(200).json({ user });
 };
 const login = async (req, res) => {
@@ -95,6 +126,42 @@ const generateCustomAnswer = async (req, res) => {
   });
   pdfParser.loadPDF(path.resolve(resume_path));
 };
+
+// Compute resume-to-job-description match percentage using the Python embeddings service
+const getMatchPercent = async (req, res) => {
+  try {
+    const { jobDescription } = req.body;
+    if (!jobDescription || jobDescription.trim().length === 0) {
+      return res.status(400).json({ message: "jobDescription is required" });
+    }
+    // Use pre-upserted resume embedding from FAISS service
+    if (typeof fetch !== "function") {
+      return res.status(500).json({ message: "fetch is not available on this Node runtime" });
+    }
+    const pyResp = await fetch("http://localhost:8000/match_for_user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: String(req.user._id),
+        job_description: jobDescription,
+      }),
+    });
+    if (!pyResp.ok) {
+      const text = await pyResp.text();
+      return res.status(pyResp.status).json({ message: "Embeddings service error", detail: text });
+    }
+    const data = await pyResp.json();
+    return res.status(200).json({
+      score: data.score,
+      percent: data.percent,
+      matchingWords: data.matching_words || [],
+      missingWords: data.missing_words || [],
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 module.exports = {
   AddUser,
   getUserDetails,
@@ -102,4 +169,5 @@ module.exports = {
   updateUserDetails,
   getResume,
   generateCustomAnswer,
+  getMatchPercent,
 };

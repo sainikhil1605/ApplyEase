@@ -3,39 +3,75 @@ import { useEffect, useState } from "react";
 import axiosInstance from "../../utils/axiosInstance";
 const Dashboard = () => {
   const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [matchResult, setMatchResult] = useState(null);
+  const [appQuestion, setAppQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
   console.log(userData);
   useEffect(() => {
     const getData = () => {
-      const data = axiosInstance
+      setError("");
+      setLoading(true);
+      axiosInstance
         .get("/user")
         .then((response) => {
-          console.log(response.data.user);
-          setUserData(response.data.user);
+          setUserData(response.data);
         })
-        .catch((error) => {
-          console.log(error);
-        });
+        .catch((e) => {
+          setError(e?.response?.data?.detail || e?.message || "Failed to load user");
+        })
+        .finally(() => setLoading(false));
     };
     getData();
   }, []);
   const handleSubmit = async () => {
-    console.log(userData);
+    setError("");
+    setLoading(true);
     const formData = new FormData();
     formData.append("resume", userData.resume);
     formData.append("first_name", userData.first_name);
     formData.append("last_name", userData.last_name);
-    userData.urls.forEach((url) => {
-      formData.append("urls", JSON.stringify(url));
-    });
-    const response = await axiosInstance.patch("/user", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    if (Array.isArray(userData.urls)) {
+      formData.append("urls", JSON.stringify(userData.urls));
+    }
+    try {
+      await axiosInstance.patch("/user", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    } catch (e) {
+      setError(e?.response?.data?.detail || e?.message || "Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleMatch = async () => {
+    if (!jobDescription.trim()) return;
+    try {
+      const resp = await axiosInstance.post("/match", { jobDescription });
+      setMatchResult(resp.data);
+    } catch (e) {
+      console.log(e);
+    }
+  };
+  const handleCustomAnswer = async () => {
+    if (!jobDescription.trim() || !appQuestion.trim()) return;
+    try {
+      const resp = await axiosInstance.post("/custom-answer", {
+        jobDescription,
+        applicationQuestion: appQuestion,
+      });
+      setAnswer(resp.data.answer || "");
+    } catch (e) {
+      console.log(e);
+    }
   };
   return (
     <div>
       <div>Dashboard</div>
+      {loading && <div>Loading...</div>}
+      {error && <div style={{ color: "red" }}>{error}</div>}
       <div>
         <label>Resume</label>
         <input
@@ -98,6 +134,51 @@ const Dashboard = () => {
       </div>
       <div>
         <button onClick={() => handleSubmit()}>Submit</button>
+      </div>
+      <hr />
+      <div>
+        <h3>Match Job Description</h3>
+        <textarea
+          placeholder="Paste job description"
+          value={jobDescription}
+          onChange={(e) => setJobDescription(e.target.value)}
+          rows={6}
+          cols={80}
+        />
+        <div>
+          <button onClick={handleMatch}>Compute Match</button>
+        </div>
+        {matchResult && (
+          <div>
+            <div>Match: {matchResult.percent}%</div>
+            <div>
+              Matching: {(matchResult.matchingWords || []).join(", ")}
+            </div>
+            <div>
+              Missing: {(matchResult.missingWords || []).join(", ")}
+            </div>
+          </div>
+        )}
+      </div>
+      <hr />
+      <div>
+        <h3>Generate Custom Answer</h3>
+        <textarea
+          placeholder="Application question"
+          value={appQuestion}
+          onChange={(e) => setAppQuestion(e.target.value)}
+          rows={3}
+          cols={80}
+        />
+        <div>
+          <button onClick={handleCustomAnswer}>Generate Answer</button>
+        </div>
+        {answer && (
+          <div>
+            <h4>Answer</h4>
+            <pre>{answer}</pre>
+          </div>
+        )}
       </div>
     </div>
   );

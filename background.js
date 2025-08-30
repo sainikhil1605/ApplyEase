@@ -37,6 +37,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse(tabs[0].url);
     });
   }
+  if (message.action === "openPopup") {
+    try {
+      if (chrome.action && chrome.action.openPopup) {
+        chrome.action.openPopup();
+      } else {
+        // Fallback: open popup page in a new tab
+        const url = chrome.runtime.getURL("popup/popup.html");
+        chrome.tabs.create({ url, active: true });
+      }
+    } catch (e) {
+      const url = chrome.runtime.getURL("popup/popup.html");
+      chrome.tabs.create({ url, active: true });
+    }
+  }
   return true;
 });
 

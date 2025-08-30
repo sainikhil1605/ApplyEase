@@ -7,14 +7,23 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="container mt-3" style="width: 350px;">
-       
+    <div class="container mt-3" style="width: 360px;">
+        
         <img id="logo" width="100px" src="./icon.png"/>
-        <div className="container">
+        <div class="container">
             <img width="50px" id="loading-gif" src="./Loading_2.gif"/>
             <span id="filling-text">Filling ...</span>
         </div>
         <button id="auto-fill"></button>
+        <hr/>
+        <div id="match-panel" style="display:none;">
+          <div style="font-weight:600;">Resume Match</div>
+          <div id="match-percent" style="margin:4px 0 8px;"></div>
+          <div style="font-weight:600;">Matching Keywords</div>
+          <div id="match-matching" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+          <div style="font-weight:600;">Missing Keywords</div>
+          <div id="match-missing" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
     </div>
 </body>
 <script type="module" src="popup.js"> </script>

@@ -3,7 +3,6 @@
     "version":"1.0",
     "description":"An Extension to apply jobs with ease",
     "manifest_version":3,
-    "type":"module",
     "action":{
         "default_popup":"popup/popup.html",
         "default_title":"Apple Ease"
@@ -26,7 +25,8 @@
     "content_scripts": [
         {
           "matches": ["<all_urls>"],
-          "run_at":"document_start",
+          "run_at":"document_end",
+          "all_frames": true,
           "js": ["contentscript.js"]
         }
     ],

@@ -5,6 +5,7 @@ const {
   updateUserDetails,
   getResume,
   generateCustomAnswer,
+  getMatchPercent,
 } = require("../controller/User");
 const authMiddleware = require("../middleware/auth");
 const uploadMiddleware = require("../middleware/multerUpload");
@@ -22,4 +23,5 @@ router.patch(
 );
 router.post("/custom-answer", authMiddleware, generateCustomAnswer);
 router.get("/resume", authMiddleware, getResume);
+router.post("/match", authMiddleware, getMatchPercent);
 module.exports = router;
