@@ -1,6 +1,8 @@
 ApplyEase — Local, Privacy‑First Job Application Assistant
 
 Overview
+- Generates Tailored CV based on Job Application.
+  <img width="1436" height="853" alt="image" src="https://github.com/user-attachments/assets/b0498b43-6034-4d4b-98f1-5a0bb7c089fc" />
 
 - Auto‑fills common job application fields (first/last name, email, phone, links) and uploads your resume.
 - Computes a Resume ↔ Job Description match score with tech‑term highlights (matching/missing keywords).
