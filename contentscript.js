@@ -13,6 +13,17 @@ const fetchUserDetails = async (token) => {
   if (!resUser.ok) throw new Error("Unauthorized or failed user fetch");
   const data = await resUser.json();
   const user = (data && data.user) ? data.user : data;
+  // Prefer stored file; fallback to generated PDF; then raw text
+  const resFile = await fetch(`${API_BASE}/resume_file`, { headers });
+  if (resFile.ok) {
+    const blob = await resFile.blob();
+    const type = resFile.headers.get("Content-Type") || blob.type || "application/pdf";
+    const disp = resFile.headers.get("Content-Disposition") || "";
+    const fnameMatch = /filename=([^;]+)/i.exec(disp || "");
+    const fname = fnameMatch ? fnameMatch[1].replace(/"/g, "").trim() : "resume.pdf";
+    const file = new File([blob], fname, { type });
+    return { ...user, resume: file };
+  }
   const resPdf = await fetch(`${API_BASE}/resume_pdf`, { headers });
   let file = null;
   if (resPdf.ok) {
@@ -126,7 +137,7 @@ const getCustomAnswer = async (jd, question, token) => {
 };
 
 // ------- Autofill -------
-const fillForm = (values) => {
+const fillForm = async (values) => {
   const inputs = Array.from(
     document.querySelectorAll("input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],input[type=file],input:not([type])")
   );
@@ -201,15 +212,34 @@ const fillForm = (values) => {
   };
 
   const resumeInputs = findResumeInputs();
-  if (values.resume && resumeInputs.length) {
-    resumeInputs.forEach((fi) => {
-      ensureVisible(fi);
-      uploadFile(fi, values.resume);
-      // Fire extra events some sites listen for
-      try { fi.dispatchEvent(new Event("input", { bubbles: true })); } catch {}
-      try { fi.dispatchEvent(new Event("change", { bubbles: true })); } catch {}
-      try { fi.dispatchEvent(new Event("blur", { bubbles: true })); } catch {}
-    });
+  if (resumeInputs.length) {
+    let fileToUse = values.resume || null;
+    try {
+      const hostKey = `applyease_use_tailored_${location.host}`;
+      const token = await getToken();
+      const useTl = await new Promise((resolve) => chrome.storage.session.get(hostKey, (d) => resolve(!!d?.[hostKey])));
+      if (useTl && token) {
+        const jd = await getJobDescription();
+        const r1 = await fetch(`${API_BASE}/tailored_resume`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ jobDescription: jd, save: false }) });
+        if (r1.ok) {
+          const j = await r1.json();
+          const r2 = await fetch(`${API_BASE}/render_pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ text: j.resume_text, filename: 'tailored_resume.pdf' }) });
+          if (r2.ok) {
+            const blob = await r2.blob();
+            fileToUse = new File([blob], 'tailored_resume.pdf', { type: 'application/pdf' });
+          }
+        }
+      }
+    } catch (e) {}
+    if (fileToUse) {
+      resumeInputs.forEach((fi) => {
+        ensureVisible(fi);
+        uploadFile(fi, fileToUse);
+        try { fi.dispatchEvent(new Event("input", { bubbles: true })); } catch {}
+        try { fi.dispatchEvent(new Event("change", { bubbles: true })); } catch {}
+        try { fi.dispatchEvent(new Event("blur", { bubbles: true })); } catch {}
+      });
+    }
   }
 
   // Textareas: add Fill buttons using local LLM
@@ -242,11 +272,38 @@ const renderMatchWidget = (percent, onClick) => {
     w = document.createElement("div");
     w.id = "applyease-match-widget";
     w.style.cssText =
-      "position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#0d9488;color:#fff;padding:10px 14px;border-radius:9999px;font-family:sans-serif;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.15);cursor:pointer";
+      "position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#0d9488;color:#fff;padding:10px 14px;border-radius:12px;font-family:sans-serif;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.15);min-width:240px;";
     document.body.appendChild(w);
   }
-  w.textContent = `Resume Match: ${percent}%`;
-  w.onclick = onClick;
+  w.innerHTML = "";
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px";
+  const label = document.createElement("div");
+  label.textContent = `Resume Match: ${percent}%`;
+  const openBtn = document.createElement("button");
+  openBtn.textContent = "Open";
+  openBtn.style.cssText = "background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 10px;border-radius:8px;cursor:pointer";
+  openBtn.onclick = onClick;
+  row.appendChild(label); row.appendChild(openBtn);
+  w.appendChild(row);
+
+  const hostKey = `applyease_use_tailored_${location.host}`;
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:8px";
+  const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "ae-use-tailored";
+  const cbLabel = document.createElement("label"); cbLabel.htmlFor = "ae-use-tailored"; cbLabel.textContent = "Use tailored CV for this application";
+  try { chrome.storage.session.get(hostKey, (d) => { cb.checked = !!d?.[hostKey]; }); } catch {}
+  cb.addEventListener("change", () => { try { const v = {}; v[hostKey] = cb.checked; chrome.storage.session.set(v); } catch {} });
+  wrap.appendChild(cb); wrap.appendChild(cbLabel); w.appendChild(wrap);
+
+  const gen = document.createElement("button");
+  gen.textContent = "Generate Custom CV";
+  gen.style.cssText = "margin-top:6px;background:#2563eb;color:#fff;border:0;padding:6px 10px;border-radius:8px;cursor:pointer;width:100%";
+  gen.addEventListener("click", async () => {
+    const jd = await getJobDescription();
+    chrome.runtime.sendMessage({ action: "newTab", url: `http://localhost:3000/dashboard?jd=${encodeURIComponent(jd)}` });
+  });
+  w.appendChild(gen);
 };
 
 // ------- Messaging -------
@@ -259,8 +316,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .finally(() => sendResponse({ ok: true }));
     return true; // async
   }
+  if (message.action === "getOrSyncToken") {
+    // Try chrome.storage first, then page localStorage, then persist
+    try {
+      chrome.storage.local.get("token", (d) => {
+        let t = d?.token || null;
+        if (t) return sendResponse({ token: t });
+        try {
+          const pageToken = window.localStorage?.getItem?.("token");
+          if (pageToken) {
+            chrome.storage.local.set({ token: pageToken }, () => sendResponse({ token: pageToken }));
+          } else {
+            sendResponse({ token: null });
+          }
+        } catch (e) {
+          sendResponse({ token: null });
+        }
+      });
+    } catch (e) {
+      sendResponse({ token: null });
+    }
+    return true;
+  }
   if (message.action === "getJobDescription") {
     getJobDescription().then((jd) => sendResponse({ jd })).catch(() => sendResponse({ jd: "" }));
+    return true;
+  }
+  if (message.action === "computeMatch") {
+    (async () => {
+      try {
+        const jd = await getJobDescription();
+        if (!jd || jd.length < 20) return sendResponse({ ok: false, error: "no_jd" });
+        const token = message.token || (await getToken());
+        if (!token) return sendResponse({ ok: false, error: "no_token" });
+        const match = await getMatch(jd, token);
+        // refresh cache for popup reuse
+        try { chrome.storage.session?.set?.({ applyease_last_match: match }); } catch {}
+        return sendResponse({ ok: true, match });
+      } catch (e) {
+        return sendResponse({ ok: false, error: String(e) });
+      }
+    })();
     return true;
   }
   return false;

@@ -132,6 +132,10 @@ def _ensure_schema():
                 );
                 """
             )
+            # Add blob columns for storing original resume file
+            cur.execute("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS resume_blob bytea;")
+            cur.execute("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS resume_mime text;")
+            cur.execute("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS resume_filename text;")
             # Users table for migrated Node backend
             cur.execute(
                 """
@@ -158,6 +162,21 @@ def _ensure_schema():
             except Exception:
                 # Older pgvector may not support vector_cosine_ops; ignore
                 pass
+            # Tailored resumes history (optional persistence)
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tailored_resumes (
+                    id text PRIMARY KEY,
+                    user_id text NOT NULL,
+                    job_description text NOT NULL,
+                    resume_text text NOT NULL,
+                    resume_blob bytea,
+                    resume_mime text,
+                    resume_filename text,
+                    created_at timestamptz NOT NULL DEFAULT now()
+                );
+                """
+            )
     finally:
         _put_conn(conn)
 
@@ -211,6 +230,20 @@ _EXTRA_STOP = {
     "communications",
     "benefits",
     "salary",
+    # Generic JD adjectives/phrases we don't want as tech terms
+    "consumer-facing",
+    "customer-obsessed",
+    "results-driven",
+    "revenue-generating",
+    "self-directed",
+    "self-starter",
+    "people-first",
+    "world-class",
+    "in-house",
+    "event-driven",
+    "well-being",
+    "know-how",
+    "unit-testing",
 }
 
 # Curated technical terms and acronyms to keep
@@ -236,18 +269,47 @@ _TECH_TERMS = {
 
 def _normalize_token(tok: str) -> str:
     # Trim common trailing punctuation and quotes
-    return tok.strip(".,;:!?()[]{}\"'`)“”’“”")
+    t = tok.strip(".,;:!?()[]{}\"'`)“”’“”")
+    t = t.lower()
+    # Collapse common hyphenated variants to canonical tokens
+    hyphen_map = {
+        "back-end": "backend",
+        "front-end": "frontend",
+        "full-stack": "fullstack",
+    }
+    t = hyphen_map.get(t, t)
+    return t
 
 
 def _is_tech_term(tok: str) -> bool:
+    # Explicit allow
     if tok in _TECH_TERMS:
         return True
-    # Heuristic: tokens with digits or special tech-y chars are likely technical
-    if any(ch in tok for ch in "+#.-_0123456789"):
+
+    # Block pure numbers or mostly numeric tokens
+    if tok.isdigit() or re.fullmatch(r"\d+(?:\.\d+)?", tok):
+        return False
+
+    # Allow specific digit-bearing tech tokens
+    if tok in {"s3", "ec2", "rds", "sqs", "sns", "k8s"}:
         return True
-    # Short common acronyms to keep
-    if tok in {"api", "sql", "nosql", "ml", "ai", "nlp", "etl", "sre", "devops", "tls", "ssl", "jwt"}:
+
+    # Drop other digit-mixed tokens
+    if any(ch.isdigit() for ch in tok):
+        return False
+
+    # Allow well-known acronyms
+    if tok in {"api", "sql", "nosql", "ml", "ai", "nlp", "etl", "sre", "devops", "tls", "ssl", "jwt", "grpc", "rest", "http", "https", "tdd"}:
         return True
+
+    # Only allow hyphenated tokens if in allowlist (avoid adjectives like consumer-facing)
+    if "-" in tok:
+        return tok in _TECH_TERMS
+
+    # Allow tokens with special signs only for known tech spellings
+    if tok in {"c++", "c#", ".net", "node.js", "next.js"}:
+        return True
+
     return False
 
 
@@ -266,6 +328,94 @@ def _match_and_missing(resume_text: str, jd_text: str, limit: int = 50):
     matching = sorted(r_set.intersection(j_set))[:limit]
     missing = sorted(j_set.difference(r_set))[:limit]
     return matching, missing
+
+
+def _sanitize_for_pdf(text: str) -> str:
+    # Replace common unicode punctuation with ASCII equivalents to avoid PDF encoding issues
+    if not text:
+        return ""
+    repl = {
+        "\u2013": "-",  # en dash
+        "\u2014": "-",  # em dash
+        "\u2018": "'",  # left single quote
+        "\u2019": "'",  # right single quote
+        "\u201c": '"',  # left double quote
+        "\u201d": '"',  # right double quote
+        "\u2022": "-",  # bullet
+        "\u00a0": " ",  # non-breaking space
+    }
+    for k, v in repl.items():
+        text = text.replace(k, v)
+    # Best-effort fallback to latin-1 to satisfy ReportLab's standard fonts
+    try:
+        return text.encode("latin-1", "ignore").decode("latin-1")
+    except Exception:
+        return text.encode("ascii", "ignore").decode("ascii")
+
+
+def _clip_text(text: str, max_chars: int = 4000) -> str:
+    if not text:
+        return ""
+    t = re.sub(r"\s+", " ", str(text)).strip()
+    if len(t) <= max_chars:
+        return t
+    # Keep start and end to preserve context
+    head = t[: max_chars // 2]
+    tail = t[-max_chars // 2 :]
+    return head + " ... " + tail
+
+
+def _render_text_to_pdf_stream(text: str, filename: str = "document.pdf"):
+    # Render long text across multiple pages with simple word-wrap and page breaks
+    from io import BytesIO
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    margin_x = 72
+    margin_top = 72
+    margin_bottom = 72
+    max_line_chars = 95  # rough wrap by characters; adequate for mono-like body
+
+    def new_textobject():
+        t = c.beginText(margin_x, height - margin_top)
+        t.setLeading(14)
+        return t
+
+    safe_text = _sanitize_for_pdf(text or "")
+    textobject = new_textobject()
+    for paragraph in safe_text.splitlines() or [""]:
+        if not paragraph:
+            if textobject.getY() <= margin_bottom:
+                c.drawText(textobject)
+                c.showPage()
+                textobject = new_textobject()
+            textobject.textLine("")
+            continue
+        line = ""
+        for word in paragraph.split(" "):
+            if len(line) + len(word) + 1 > max_line_chars:
+                if textobject.getY() <= margin_bottom:
+                    c.drawText(textobject)
+                    c.showPage()
+                    textobject = new_textobject()
+                textobject.textLine(line)
+                line = word
+            else:
+                line = (line + " " + word).strip()
+        if line:
+            if textobject.getY() <= margin_bottom:
+                c.drawText(textobject)
+                c.showPage()
+                textobject = new_textobject()
+            textobject.textLine(line)
+    c.drawText(textobject)
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return buffer, headers
 
 
 @app.post("/similarity", response_model=SimilarityResponse)
@@ -509,6 +659,7 @@ async def update_user(
     user_id: str = Depends(_current_user),
     first_name: Optional[str] = Form(None),
     last_name: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
     phone: Optional[str] = Form(None),
     location: Optional[str] = Form(None),
     urls: Optional[str] = Form(None),  # JSON string array
@@ -539,6 +690,7 @@ async def update_user(
                     params.append(val)
             add("first_name", first_name)
             add("last_name", last_name)
+            add("email", email)
             add("phone", phone)
             add("location", location)
             if urls_val is not None:
@@ -560,17 +712,61 @@ async def update_user(
     if resume is not None:
         from pdfminer.high_level import extract_text
         try:
-            content = await resume.read()
-            # Save to a temporary file-like for pdfminer
+            # Skip if no file actually provided
+            if not getattr(resume, "filename", None):
+                content = b""
+            else:
+                content = await resume.read()
+            if not content:
+                return {"ok": True}
+            # Persist: parse to text for embedding
             import tempfile
-            with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp:
+            suffix = ""
+            try:
+                # Guess suffix from filename
+                if resume.filename and "." in resume.filename:
+                    suffix = "." + resume.filename.rsplit(".", 1)[-1]
+            except Exception:
+                suffix = ""
+            with tempfile.NamedTemporaryFile(suffix=suffix or ".pdf") as tmp:
                 tmp.write(content)
                 tmp.flush()
                 resume_text = extract_text(tmp.name) or ""
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {e}")
-        # Reuse upsert logic directly
-        upsert_resume(UpsertRequest(user_id=user_id, resume_text=resume_text))
+            raise HTTPException(status_code=400, detail=f"Failed to parse resume: {e}")
+
+        # Compute embedding + keywords
+        vec = _normalize(_embed(resume_text))
+        keywords = sorted(_keywords(resume_text))
+        # Upsert everything including blob
+        conn2 = _conn()
+        try:
+            with conn2.cursor() as cur2:
+                cur2.execute(
+                    """
+                    INSERT INTO resumes (user_id, resume_text, embedding, resume_keywords, resume_blob, resume_mime, resume_filename, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                    ON CONFLICT (user_id) DO UPDATE SET
+                      resume_text = EXCLUDED.resume_text,
+                      embedding = EXCLUDED.embedding,
+                      resume_keywords = EXCLUDED.resume_keywords,
+                      resume_blob = EXCLUDED.resume_blob,
+                      resume_mime = EXCLUDED.resume_mime,
+                      resume_filename = EXCLUDED.resume_filename,
+                      updated_at = now()
+                    """,
+                    (
+                        user_id,
+                        resume_text,
+                        vec.tolist(),
+                        keywords,
+                        psycopg2.Binary(content),
+                        getattr(resume, "content_type", None) or "application/pdf",
+                        resume.filename or "resume.pdf",
+                    ),
+                )
+        finally:
+            _put_conn(conn2)
 
     return {"ok": True}
 
@@ -589,46 +785,46 @@ def get_resume(user_id: str = Depends(_current_user)):
         _put_conn(conn)
 
 
-@app.get("/resume_pdf")
-def get_resume_pdf(user_id: str = Depends(_current_user)):
-    # Render stored resume_text to a simple PDF for upload on job sites
+@app.get("/resume_file")
+def get_resume_file(user_id: str = Depends(_current_user)):
     conn = _conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT resume_text FROM resumes WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT resume_blob, resume_mime, resume_filename FROM resumes WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="No resume stored")
-            resume_text = row[0] or ""
+            if not row or row[0] is None:
+                raise HTTPException(status_code=404, detail="No resume file stored")
+            blob, mime, fname = row
     finally:
         _put_conn(conn)
     try:
         from io import BytesIO
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import letter
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=letter)
-        width, height = letter
-        textobject = c.beginText(72, height - 72)
-        # Wrap lines roughly at 95 chars
-        for paragraph in resume_text.splitlines() or [""]:
-            if not paragraph:
-                textobject.textLine("")
-                continue
-            line = ""
-            for word in paragraph.split(" "):
-                if len(line) + len(word) + 1 > 95:
-                    textobject.textLine(line)
-                    line = word
-                else:
-                    line = (line + " " + word).strip()
-            if line:
-                textobject.textLine(line)
-        c.drawText(textobject)
-        c.showPage()
-        c.save()
-        buffer.seek(0)
-        headers = {"Content-Disposition": "attachment; filename=resume.pdf"}
+        bio = BytesIO(blob)
+        headers = {"Content-Disposition": f"inline; filename={fname or 'resume.pdf'}"}
+        return StreamingResponse(bio, media_type=mime or "application/pdf", headers=headers)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stream resume: {e}")
+
+
+@app.get("/resume_pdf")
+def get_resume_pdf(user_id: str = Depends(_current_user)):
+    # Prefer stored PDF blob if present; otherwise render text to PDF
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT resume_blob, resume_mime, resume_filename, resume_text FROM resumes WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="No resume stored")
+            blob, mime, fname, resume_text = row[0], row[1], row[2], row[3] or ""
+    finally:
+        _put_conn(conn)
+    try:
+        if blob and (mime or "").lower().startswith("application/pdf"):
+            from io import BytesIO
+            headers = {"Content-Disposition": f"inline; filename={fname or 'resume.pdf'}"}
+            return StreamingResponse(BytesIO(blob), media_type=mime or "application/pdf", headers=headers)
+        buffer, headers = _render_text_to_pdf_stream(resume_text, filename=fname or "resume.pdf")
         return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to render PDF: {e}")
@@ -694,7 +890,7 @@ def custom_answer(req: CustomAnswerBody, user_id: str = Depends(_current_user)):
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                 },
-                timeout=120,
+                timeout=15,
             )
             if r.status_code != 200:
                 raise HTTPException(status_code=502, detail=f"Ollama error: {r.text}")
@@ -717,7 +913,7 @@ def custom_answer(req: CustomAnswerBody, user_id: str = Depends(_current_user)):
                 url,
                 headers={"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY', 'lm-studio')}", "Content-Type": "application/json"},
                 json={"model": model, "messages": [{"role": "user", "content": prompt}]},
-                timeout=120,
+                timeout=15,
             )
             if r.status_code != 200:
                 raise HTTPException(status_code=502, detail=f"LM Studio error: {r.text}")
@@ -734,3 +930,269 @@ def custom_answer(req: CustomAnswerBody, user_id: str = Depends(_current_user)):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+
+
+def _llm_complete(prompt: str) -> str:
+    provider = os.getenv("LLM_PROVIDER", "ollama").lower()
+    ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    base_url = os.getenv("LLM_BASE_URL", "http://localhost:1234/v1")
+    model = os.getenv("LLM_MODEL")
+    timeout_s = int(os.getenv("LLM_TIMEOUT_SECONDS", "50"))
+    if provider in {"off", "none", "disabled"}:
+        return ""
+    try:
+        if provider == "ollama":
+            model_name = model or "llama3.1:8b"
+            import requests as _rq
+            r = _rq.post(
+                f"{ollama_host.rstrip('/')}/api/chat",
+                json={
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "options": { "num_ctx": 8192, "temperature": 0.2 }
+                },
+                timeout=timeout_s,
+            )
+            if r.status_code != 200:
+                return ""
+            data = r.json()
+            if isinstance(data, dict):
+                if isinstance(data.get("message"), dict):
+                    return data["message"].get("content") or ""
+                if "response" in data:
+                    return data.get("response") or ""
+            return ""
+        elif provider in ("lmstudio", "openai_compatible", "vllm"):
+            if not model:
+                raise RuntimeError("Set LLM_MODEL for lmstudio/vLLM provider")
+            import requests as _rq
+            url = f"{base_url.rstrip('/')}/chat/completions"
+            r = _rq.post(
+                url,
+                headers={"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY', 'lm-studio')}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout_s,
+            )
+            if r.status_code != 200:
+                return ""
+            data = r.json()
+            return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        else:
+            raise RuntimeError("Unsupported LLM_PROVIDER")
+    except Exception:
+        return ""
+
+
+class TailoredResumeBody(BaseModel):
+    jobDescription: str
+    save: Optional[bool] = False
+
+
+@app.post("/tailored_resume")
+def tailored_resume(req: TailoredResumeBody, user_id: str = Depends(_current_user)):
+    # Fetch resume text
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT resume_text FROM resumes WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="No resume stored")
+            resume_text = row[0] or ""
+    finally:
+        _put_conn(conn)
+
+    matching, missing = _match_and_missing(resume_text, req.jobDescription)
+    target_terms = missing[:20]
+
+    # Clip inputs to avoid overwhelming local LLM servers
+    max_chars = int(os.getenv("LLM_TAILOR_MAX_CHARS", "4000"))
+    jd_clip = _clip_text(req.jobDescription, max_chars)
+    resume_clip = _clip_text(resume_text, max_chars)
+
+    base_prompt = (
+        "Rewrite the resume text to naturally include the given technical keywords if and only if they reflect true experience.\n"
+        "Preserve factual accuracy, avoid keyword stuffing, and keep a concise professional tone.\n"
+        "Return ONLY the rewritten resume text and donot add any prefix text describing the job done.\n\n"
+        f"Target keywords: {', '.join(target_terms)}\n\n"
+        f"Job description (context): {jd_clip}\n\n"
+        f"Resume:\n{resume_clip}\n"
+    )
+    new_text = _llm_complete(base_prompt).strip()
+    if not new_text:
+        # Fallback: append a compact skills block
+        if target_terms:
+            new_text = resume_text + "\n\nSkills Highlight: " + ", ".join(target_terms)
+        else:
+            new_text = resume_text
+
+    if req.save:
+        conn2 = _conn()
+        try:
+            with conn2.cursor() as cur:
+                tid = str(uuid.uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO tailored_resumes (id, user_id, job_description, resume_text)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (tid, user_id, req.jobDescription, new_text),
+                )
+        finally:
+            _put_conn(conn2)
+
+    return {"resume_text": new_text, "matching_words": matching, "missing_words": target_terms}
+
+
+@app.post("/tailored_resume_pdf")
+def tailored_resume_pdf(req: TailoredResumeBody, user_id: str = Depends(_current_user)):
+    resp = tailored_resume(req, user_id)  # generate text (and maybe save row)
+    text = resp.get("resume_text", "")
+    try:
+        buffer, headers = _render_text_to_pdf_stream(text, filename="tailored_resume.pdf")
+        # Optionally save to history with blob
+        if req.save:
+            pdf_bytes = buffer.getvalue()
+            conn = _conn()
+            try:
+                with conn.cursor() as cur:
+                    tid = str(uuid.uuid4())
+                    cur.execute(
+                        """
+                        INSERT INTO tailored_resumes (id, user_id, job_description, resume_text, resume_blob, resume_mime, resume_filename)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            tid,
+                            user_id,
+                            req.jobDescription,
+                            text,
+                            psycopg2.Binary(pdf_bytes),
+                            "application/pdf",
+                            "tailored_resume.pdf",
+                        ),
+                    )
+            finally:
+                _put_conn(conn)
+        return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to render PDF: {e}")
+
+
+class RenderPdfBody(BaseModel):
+    text: str
+    filename: Optional[str] = None
+
+
+@app.post("/render_pdf")
+def render_pdf(req: RenderPdfBody, user_id: str = Depends(_current_user)):
+    # Render arbitrary text to PDF (no LLM call). Used by dashboard after generating tailored CV text.
+    try:
+        fname = (req.filename or "document.pdf").replace("\n", " ")
+        buffer, headers = _render_text_to_pdf_stream(req.text or "", filename=fname)
+        return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to render PDF: {e}")
+
+
+@app.get("/tailored_resumes")
+def list_tailored_resumes(user_id: str = Depends(_current_user)):
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, created_at, resume_filename, (resume_blob IS NOT NULL) AS has_blob FROM tailored_resumes WHERE user_id = %s ORDER BY created_at DESC",
+                (user_id,),
+            )
+            rows = cur.fetchall() or []
+            items = [
+                {
+                    "id": r[0],
+                    "created_at": str(r[1]),
+                    "filename": r[2] or "tailored_resume.pdf",
+                    "has_blob": bool(r[3]),
+                }
+                for r in rows
+            ]
+            return {"items": items}
+    finally:
+        _put_conn(conn)
+
+
+@app.get("/tailored_resume_download")
+def download_tailored_resume(id: str, user_id: str = Depends(_current_user)):
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT resume_blob, resume_mime, resume_filename, resume_text FROM tailored_resumes WHERE id = %s AND user_id = %s",
+                (id, user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Not found")
+            blob, mime, fname, text = row
+            if blob:
+                from io import BytesIO
+                headers = {"Content-Disposition": f"attachment; filename={fname or 'tailored_resume.pdf'}"}
+                return StreamingResponse(BytesIO(blob), media_type=mime or "application/pdf", headers=headers)
+            buffer, headers = _render_text_to_pdf_stream(text or "", filename=fname or "tailored_resume.pdf")
+            return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
+    finally:
+        _put_conn(conn)
+
+
+class UseTailoredBody(BaseModel):
+    id: str
+
+
+@app.post("/use_tailored")
+def use_tailored(body: UseTailoredBody, user_id: str = Depends(_current_user)):
+    # Replace current resume with a tailored one (text + embedding + optional blob)
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT resume_text, resume_blob, resume_mime, resume_filename FROM tailored_resumes WHERE id = %s AND user_id = %s",
+                (body.id, user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Tailored resume not found")
+            text, blob, mime, fname = row
+    finally:
+        _put_conn(conn)
+
+    text = text or ""
+    vec = _normalize(_embed(text))
+    keywords = sorted(_keywords(text))
+    conn2 = _conn()
+    try:
+        with conn2.cursor() as cur2:
+            cur2.execute(
+                """
+                INSERT INTO resumes (user_id, resume_text, embedding, resume_keywords, resume_blob, resume_mime, resume_filename, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (user_id) DO UPDATE SET
+                  resume_text = EXCLUDED.resume_text,
+                  embedding = EXCLUDED.embedding,
+                  resume_keywords = EXCLUDED.resume_keywords,
+                  resume_blob = EXCLUDED.resume_blob,
+                  resume_mime = EXCLUDED.resume_mime,
+                  resume_filename = EXCLUDED.resume_filename,
+                  updated_at = now()
+                """,
+                (
+                    user_id,
+                    text,
+                    vec.tolist(),
+                    keywords,
+                    psycopg2.Binary(blob) if blob else None,
+                    mime or ("application/pdf" if blob else None),
+                    fname or ("resume.pdf" if blob else None),
+                ),
+            )
+    finally:
+        _put_conn(conn2)
+    return {"ok": True}
