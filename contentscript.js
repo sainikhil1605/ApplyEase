@@ -137,6 +137,30 @@ const getCustomAnswer = async (jd, question, token) => {
 };
 
 // ------- Autofill -------
+const addFillButtonsForTextareas = () => {
+  // Textareas: add Fill buttons using local LLM (idempotent)
+  Array.from(document.querySelectorAll("textarea")).forEach((ta) => {
+    if (ta.nextSibling && ta.nextSibling.className === "applyease-fill-btn") return;
+    const btn = document.createElement("button");
+    btn.textContent = "Fill";
+    btn.className = "applyease-fill-btn";
+    btn.style.cssText = "margin: 8px 0; padding: 6px 10px; background:#2563eb;color:#fff;border:0;border-radius:4px;cursor:pointer;";
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      btn.textContent = "Filling...";
+      const token = await getToken();
+      const jd = await getJobDescription();
+      const labelText = closestLabelText(ta) || "";
+      const answer = await getCustomAnswer(jd, labelText || "Application question", token);
+      setValue(ta, answer);
+      btn.textContent = "Filled";
+      setTimeout(() => (btn.textContent = "Fill", (btn.disabled = false)), 1200);
+    });
+    ta.parentElement?.insertBefore(btn, ta.nextSibling);
+  });
+};
+
 const fillForm = async (values) => {
   const inputs = Array.from(
     document.querySelectorAll("input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],input[type=file],input:not([type])")
@@ -242,27 +266,8 @@ const fillForm = async (values) => {
     }
   }
 
-  // Textareas: add Fill buttons using local LLM
-  Array.from(document.querySelectorAll("textarea")).forEach((ta) => {
-    if (ta.nextSibling && ta.nextSibling.className === "applyease-fill-btn") return;
-    const btn = document.createElement("button");
-    btn.textContent = "Fill";
-    btn.className = "applyease-fill-btn";
-    btn.style.cssText = "margin: 8px 0; padding: 6px 10px; background:#2563eb;color:#fff;border:0;border-radius:4px;cursor:pointer;";
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      btn.disabled = true;
-      btn.textContent = "Filling...";
-      const token = await getToken();
-      const jd = await getJobDescription();
-      const labelText = closestLabelText(ta) || "";
-      const answer = await getCustomAnswer(jd, labelText || "Application question", token);
-      setValue(ta, answer);
-      btn.textContent = "Filled";
-      setTimeout(() => (btn.textContent = "Fill", (btn.disabled = false)), 1200);
-    });
-    ta.parentElement?.insertBefore(btn, ta.nextSibling);
-  });
+  // Also ensure Fill buttons are present after autofill
+  addFillButtonsForTextareas();
 };
 
 // ------- Widget -------
@@ -374,6 +379,15 @@ window.addEventListener("message", (event) => {
 (async () => {
   try {
     const token = await getToken();
+    // Always inject Fill buttons for textareas; they work with or without token
+    addFillButtonsForTextareas();
+
+    // Observe DOM changes to add buttons for dynamically loaded textareas
+    try {
+      const mo = new MutationObserver(() => addFillButtonsForTextareas());
+      mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    } catch {}
+
     if (!token) return;
     const jd = await getJobDescription();
     if (!jd || jd.length < 60) return;

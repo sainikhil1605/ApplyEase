@@ -875,7 +875,7 @@ def custom_answer(req: CustomAnswerBody, user_id: str = Depends(_current_user)):
         f"Resume:\n{resume_text}\n\n"
         f"Job Description:\n{req.jobDescription}\n\n"
         f"Question:\n{req.applicationQuestion}\n\n"
-        "Write a tailored answer (120-180 words), highlight relevant skills, and keep a professional tone."
+        "Write a tailored answer (120-180 words), highlight relevant skills, and keep a professional tone and give only response do not write any other text."
     )
 
     try:
@@ -890,7 +890,7 @@ def custom_answer(req: CustomAnswerBody, user_id: str = Depends(_current_user)):
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                 },
-                timeout=15,
+                timeout=35,
             )
             if r.status_code != 200:
                 raise HTTPException(status_code=502, detail=f"Ollama error: {r.text}")
@@ -1012,7 +1012,7 @@ def tailored_resume(req: TailoredResumeBody, user_id: str = Depends(_current_use
     resume_clip = _clip_text(resume_text, max_chars)
 
     base_prompt = (
-        "Rewrite the resume text to naturally include the given technical keywords if and only if they reflect true experience.\n"
+        "Rewrite the resume text to naturally include the given technical keywords if and only if they reflect true experience.\n Return only the rewritten resume text. Do not add any explanations or other text."
         "Preserve factual accuracy, avoid keyword stuffing, and keep a concise professional tone.\n"
         "Return ONLY the rewritten resume text and donot add any prefix text describing the job done.\n\n"
         f"Target keywords: {', '.join(target_terms)}\n\n"
