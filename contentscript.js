@@ -42,12 +42,18 @@ const fetchUserDetails = async (token) => {
 };
 
 const uploadFile = (input, file) => {
-  if (!file || !input) return;
-  const dt = new DataTransfer();
-  dt.items.add(file);
-  input.files = dt.files;
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  setTimeout(() => input.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+  if (!file || !input) return false;
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files; // may throw in some sites/browsers
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    setTimeout(() => input.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+    return true;
+  } catch (e) {
+    return false;
+  }
 };
 
 const setValue = (el, val) => {
@@ -112,6 +118,100 @@ const getJobDescription = () => {
         reject(e);
       }
     });
+  });
+};
+
+// ------- Job info guessers & tracking -------
+const TITLE_SELECTORS = [
+  "h1[data-automation-id='jobPostingHeader']",
+  ".jobs-unified-top-card__job-title",
+  "h1.job-title, h1.title, h1",
+  "[data-testid='job-title'], [data-qa='job-title']",
+];
+const COMPANY_SELECTORS = [
+  ".jobs-unified-top-card__company-name a, .jobs-unified-top-card__company-name",
+  "a[data-tn-element='companyName'], .icl-u-lg-mr--sm",
+  "[data-automation-id='companyName'], [data-company], [data-company-name]",
+  ".company, .job-company, .posting-company, .topcard__org-name-link",
+];
+const LOCATION_SELECTORS = [
+  "[data-automation-id='job-location'], [data-qa='location']",
+  ".jobs-unified-top-card__bullet, .job-location, .location",
+];
+
+const textFrom = (selectors) => {
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    const t = el?.textContent?.trim();
+    if (t) return t.replace(/\s+/g, " ");
+  }
+  return "";
+};
+
+const guessJobInfo = () => {
+  let title = textFrom(TITLE_SELECTORS);
+  let company = textFrom(COMPANY_SELECTORS);
+  let location = textFrom(LOCATION_SELECTORS);
+  // Fallbacks from title tag
+  if (!title || !company) {
+    try {
+      const dt = (document.title || "").split("|")[0]; // e.g., "Senior Engineer - Acme | LinkedIn"
+      const parts = dt.split(" - ").map((s) => s.trim());
+      if (!title && parts[0]) title = parts[0];
+      if (!company && parts[1]) company = parts[1];
+    } catch {}
+  }
+  // Clean company/platform names
+  if (company && /(linkedin|indeed|lever|greenhouse|workday)/i.test(company)) company = "";
+  return { title, company, location };
+};
+
+const createJobIfPossible = async (status = "applied") => {
+  try {
+    const token = await getToken();
+    if (!token) return;
+    const info = guessJobInfo();
+    if (!info.company || !info.title) return; // backend requires both for POST
+    const jd = await getJobDescription();
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+    await fetch(`${API_BASE}/jobs`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        company: info.company,
+        title: info.title,
+        location: info.location || "",
+        source: location.host,
+        url: location.href,
+        status,
+        notes: "Auto-tracked via ApplyEase",
+        jd_text: jd || "",
+      }),
+    });
+  } catch {}
+};
+
+const setupAutoTrack = () => {
+  const key = `applyease_tracked_${location.href}`;
+  if (sessionStorage.getItem(key)) return;
+  let fired = false;
+  const mark = () => { fired = true; sessionStorage.setItem(key, "1"); };
+  const handler = async () => {
+    if (fired) return; // de-dupe
+    await createJobIfPossible("applied");
+    mark();
+  };
+  // Listen to form submissions (capture for early phase)
+  try { document.addEventListener("submit", () => setTimeout(handler, 300), { capture: true }); } catch {}
+  // Listen to common apply/submit buttons
+  const isApplyButton = (el) => {
+    const txt = (el.textContent || el.value || "").toLowerCase();
+    return /(apply|submit|send application|continue|next)/i.test(txt);
+  };
+  Array.from(document.querySelectorAll("button, input[type=submit], a, [role='button']")).forEach((el) => {
+    if (isApplyButton(el)) {
+      try { el.addEventListener("click", () => setTimeout(handler, 800), { once: true }); } catch {}
+    }
   });
 };
 
@@ -222,17 +322,33 @@ const fillForm = async (values) => {
   };
 
   const ensureVisible = (input) => {
+    // Do NOT programmatically click labels/buttons; that can open the file picker.
+    // Just attempt to scroll into view; if hidden, we will try a drag&drop fallback.
+    try { input.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+  };
+
+  const tryDropFile = (file) => {
+    // Attempt to dispatch a synthetic drop event on common dropzones
+    const dzSelectors = [
+      ".dropzone", "[data-testid*='drop']", "[data-qa*='drop']", "[data-automation-id*='drop']",
+      ".upload-dropzone", ".file-dropzone", "[aria-label*='drop']"
+    ];
+    let dz = null;
+    for (const sel of dzSelectors) { dz = document.querySelector(sel); if (dz) break; }
+    if (!dz) return false;
     try {
-      // Click associated label/button to reveal hidden input
-      if (getComputedStyle(input).display === "none" || input.className.includes("hidden") || input.offsetParent === null) {
-        const label = document.querySelector(`label[for='${input.id}']`);
-        label?.click?.();
-        // Try nearby buttons inside the same upload group
-        let group = input.closest(".file-upload, .upload, .file-upload__wrapper") || input.parentElement;
-        const btn = group?.querySelector("button, .btn, [role='button']");
-        btn?.click?.();
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const evOpts = { bubbles: true, cancelable: true, dataTransfer: dt };
+      const events = ["dragenter", "dragover", "drop"];
+      for (const type of events) {
+        const ev = new DragEvent(type, evOpts);
+        dz.dispatchEvent(ev);
       }
-    } catch {}
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const resumeInputs = findResumeInputs();
@@ -256,13 +372,19 @@ const fillForm = async (values) => {
       }
     } catch (e) {}
     if (fileToUse) {
+      let uploaded = false;
       resumeInputs.forEach((fi) => {
         ensureVisible(fi);
-        uploadFile(fi, fileToUse);
-        try { fi.dispatchEvent(new Event("input", { bubbles: true })); } catch {}
-        try { fi.dispatchEvent(new Event("change", { bubbles: true })); } catch {}
-        try { fi.dispatchEvent(new Event("blur", { bubbles: true })); } catch {}
+        const ok = uploadFile(fi, fileToUse);
+        if (ok) {
+          try { fi.dispatchEvent(new Event("blur", { bubbles: true })); } catch {}
+          uploaded = true;
+        }
       });
+      if (!uploaded) {
+        // Fallback to dropzone simulation if direct assignment blocked
+        tryDropFile(fileToUse);
+      }
     }
   }
 
@@ -309,6 +431,14 @@ const renderMatchWidget = (percent, onClick) => {
     chrome.runtime.sendMessage({ action: "newTab", url: `http://localhost:3000/dashboard?jd=${encodeURIComponent(jd)}` });
   });
   w.appendChild(gen);
+
+  const tracker = document.createElement("button");
+  tracker.textContent = "Open Job Tracker";
+  tracker.style.cssText = "margin-top:6px;background:#0ea5e9;color:#081018;border:0;padding:6px 10px;border-radius:8px;cursor:pointer;width:100%";
+  tracker.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "newTab", url: `http://localhost:3000/job-tracker` });
+  });
+  w.appendChild(tracker);
 };
 
 // ------- Messaging -------
@@ -388,6 +518,8 @@ window.addEventListener("message", (event) => {
       mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
     } catch {}
 
+    // Set up auto-tracking even if token fetch races; it checks token internally
+    setupAutoTrack();
     if (!token) return;
     const jd = await getJobDescription();
     if (!jd || jd.length < 60) return;

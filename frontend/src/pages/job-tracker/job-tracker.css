@@ -1,0 +1,38 @@
+.jt-page { min-height: 100vh; background: linear-gradient(180deg, #0f172a 0%, #111827 100%); color: #e5e7eb; }
+.jt-root { max-width: 1200px; margin: 24px auto; margin-top:0px; padding: 24px 16px; color: #e5e7eb; font-family: Inter, ui-sans-serif, system-ui; }
+.jt-header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px; }
+.jt-title { font-size: 22px; font-weight: 700; }
+.jt-actions { display:flex; gap:8px; align-items:center; }
+.jt-btn { background:#0ea5e9; border:0; color:#081018; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+.jt-btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; }
+.jt-btn.danger { background:#ef4444; color:#fff; }
+.jt-select { background:#0a0f1e; border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; padding:8px 10px; border-radius:8px; }
+.jt-select.small { padding:6px 8px; }
+.jt-card { background:#0a0f1e; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; margin-bottom:14px; }
+.jt-card-title { font-weight:700; margin-bottom:8px; color:#93c5fd; }
+.jt-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; }
+.jt-input, .jt-textarea { background:#0a0f1e; border:1px solid rgba(255,255,255,0.12); color:#e5e7eb; padding:10px 12px; border-radius:8px; }
+.jt-list { display:flex; flex-direction:column; gap:10px; }
+.jt-item { background:#0a0f1e; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px; }
+.jt-item-main { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.jt-item-title { font-weight:700; }
+.jt-item-sub { opacity:.8; }
+.jt-item-right { display:flex; gap:8px; align-items:center; }
+.jt-badge { padding:4px 8px; border-radius:999px; color:#fff; font-size:12px; text-transform:capitalize; }
+.jt-notes { margin-top:8px; white-space:pre-wrap; opacity:.9; }
+.jt-note { color:#9ca3af; }
+.jt-error { color:#fecaca; margin-bottom:8px; }
+@media (max-width: 760px){ .jt-grid { grid-template-columns: 1fr; } .jt-item-main { flex-direction:column; align-items:flex-start; } }
+
+/* Board */
+.jt-board { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:12px; margin-top: 12px; }
+.jt-col { background:#0a0f1e; border:1px solid rgba(255,255,255,0.1); border-radius:12px; min-height: 280px; display:flex; flex-direction:column; }
+.jt-col.over { outline: 2px dashed #60a5fa; outline-offset: -6px; }
+.jt-col-head { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.08); font-weight:700; color:#93c5fd; text-transform:capitalize; }
+.jt-col-body { padding:10px; display:flex; flex-direction:column; gap:8px; overflow:auto; max-height: 60vh; }
+.jt-card-mini { background:#0b1224; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; cursor:grab; }
+.jt-card-mini-title { font-weight:700; margin-bottom:2px; }
+.jt-card-mini-sub { opacity:.85; display:flex; gap:6px; align-items:center; }
+.jt-card-mini-actions { margin-top:8px; display:flex; gap:8px; }
+@media (max-width: 980px){ .jt-board { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 640px){ .jt-board { grid-template-columns: 1fr; } }

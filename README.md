@@ -10,13 +10,17 @@ Overview
 
 
 - Generates concise custom answers to application questions using a local LLM (no paid APIs).
+- NEW: Structured resume builder (summary, title, skills, multiple experiences, education) with templated tailored CV generation and PDF export.
+- NEW: Cover letters — generate LLM‑enhanced letters or clean templates; saved history with downloads.
+- NEW: Job Tracker — board and list view, drag‑and‑drop between stages (Saved → Applied → Interview → Offer → Rejected), quick cover‑letter button.
+- NEW: Extension auto‑tracking — captures an “Applied” job automatically on submit for many job sites.
 - Works via a Chrome extension with a small React dashboard and a FastAPI backend.
 
 Architecture
 
-- Backend: FastAPI (`applyease-backend/app.py`) + PostgreSQL with `pgvector` for embeddings. SentenceTransformer model `all-MiniLM-L6-v2` for resume/JD similarity. Local LLM support: Ollama (default) or LM Studio/vLLM (OpenAI‑compatible API).
-- Frontend: React app in `frontend/` (login, dashboard, profile, upload resume, compute match, generate answers).
-- Chrome Extension: Autofill on job sites, JD extraction, on‑page match widget, popup with keywords.
+- Backend: FastAPI (`applyease-backend/app.py`) + PostgreSQL with `pgvector` for embeddings. SentenceTransformer `all-MiniLM-L6-v2`. Routers: `routes/job_tracker.py`, `routes/cover_letters.py`. Local LLM: Ollama (default) or LM Studio/OpenAI‑compatible.
+- Frontend: React app in `frontend/` (login, dashboard, resume builder, cover letters tab, job tracker board/list).
+- Chrome Extension: Autofill, JD extraction, on‑page match widget, popup with keywords, job tracker button, auto‑tracking.
 
 Prerequisites
 
@@ -78,6 +82,14 @@ Basic Flow
    - Fills first/last name (or full name field), email, phone, location, URLs.
    - Attaches your resume as a PDF from the backend (`/resume_pdf`).
    - Adds “Fill” buttons next to textareas to generate tailored answers locally.
+5. Resume Builder and Tailoring
+   - Build your resume sections (title, summary, skills, experiences with bullets, education) and save.
+   - Paste a JD and click “Generate Tailored CV” to render a templated PDF that prioritizes relevant experiences.
+   - Click “Generate Cover Letter” to create a letter PDF using the JD and your profile/sections (uses local LLM if configured).
+6. Job Tracker
+   - Open Job Tracker from the dashboard or extension popup.
+   - Add jobs or drag cards between columns to update status; use List view if preferred.
+   - Auto‑tracking: on many sites, after you submit an application, the extension records the job with status “applied”.
 
 Key Endpoints (Backend on :8000)
 
@@ -91,10 +103,33 @@ Key Endpoints (Backend on :8000)
 - POST `/custom-answer` (Bearer, local LLM only) → `{ answer }`
 - POST `/upsert_resume` (service) → `{ ok, user_id }`
 
+- Structured resume sections
+  - GET `/resume_sections` (Bearer) → `{ summary, title, experiences, education, skills }`
+  - POST `/resume_sections` (Bearer) → upserts sections and refreshes embedding/keywords
+
+- Tailored resume (templated)
+  - POST `/generate_tailored_resume` (Bearer) → `{ id, download_url }` (PDF saved in history)
+  - GET `/tailored_resumes` / GET `/tailored_resume_download?id=...`
+
+- Cover letters
+  - POST `/cover_letters/generate` (Bearer) → PDF stream; body supports `{ company, title, job_description, filename, save, use_llm }`
+  - GET `/cover_letters`, GET `/cover_letters/download?id=...`
+
+- Job tracker
+  - GET `/jobs` (Bearer) → array of jobs
+  - POST `/jobs` (Bearer) → create job `{ company, title, ... }`
+  - PATCH `/jobs/{id}` (Bearer) → partial update (e.g., `{ status: 'interview' }`)
+  - DELETE `/jobs/{id}` (Bearer)
+  - GET `/jobs/stats` (Bearer)
+
 Database Schema (auto‑created)
 
 - `users(id text pk, first_name, last_name, email unique, password_hash, phone, location, urls jsonb, eeo jsonb, created_at, updated_at)`
 - `resumes(user_id text pk, resume_text text, embedding vector(384), resume_keywords text[], updated_at)`
+  - Plus structured fields: `summary text, title text, experiences jsonb, education jsonb, skills text[]`, and optional stored resume file (blob/mime/filename)
+- `tailored_resumes(id text pk, user_id, job_description, resume_text, resume_blob, resume_mime, resume_filename, created_at)`
+- `cover_letters(id text pk, user_id, job_id, company, title, letter_text, letter_blob, letter_mime, filename, created_at)`
+- `job_applications(id text pk, user_id, company, title, location, source, url, status, notes, jd_text, next_action_date, created_at, updated_at)`
 
 Smoke‑Test (curl)
 
@@ -115,7 +150,8 @@ Troubleshooting
 - Extension not autofilling:
   - Confirm token: open DevTools on the job page and run `chrome.storage.local.get('token', console.log)`.
   - Some sites load forms in iframes; we inject into all frames (`all_frames: true`).
-  - Hidden file inputs: we click associated labels/buttons to reveal, then upload `/resume_pdf`. If a specific site still resists, capture its DOM and adjust selectors.
+  - Resume upload: Browsers block programmatic file pickers. We set `input.files` via DataTransfer when allowed; otherwise we attempt drag‑and‑drop onto known dropzones.
+  - Auto‑tracking: If a job isn’t captured, it likely didn’t expose title/company reliably; we can add site‑specific selectors upon request.
 - Matching seems low with all terms: The score is cosine similarity of embeddings, not a keyword count. Keywords are diagnostic only.
 
 Notes

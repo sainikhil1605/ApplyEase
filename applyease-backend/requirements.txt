@@ -6,7 +6,7 @@ uvicorn[standard]==0.29.0
 sentence-transformers==2.7.0
 
 # PostgreSQL + pgvector
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 pgvector==0.2.5
 
 # Utilities

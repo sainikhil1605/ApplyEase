@@ -44,13 +44,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const initWithToken = (token) => {
     if (token) {
-        document.getElementById("auto-fill").innerHTML = "Auto Fill";
         document.getElementById("filling-text").style.display = "none";
-        document.getElementById("loading-gif").style.display = "none";
+        document.getElementById("loading").style.display = "none";
         const button = document.getElementById("auto-fill");
         button.addEventListener("click", () => {
-          document.getElementById("filling-text").style.display = "block";
-          document.getElementById("loading-gif").style.display = "block";
+          document.getElementById("loading").style.display = "flex";
           chrome.tabs.query(
             { active: true, currentWindow: true },
             async (tabs) => {
@@ -62,15 +60,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 (response) => {
                   console.log(response);
-                  document.getElementById("filling-text").style.display =
-                    "none";
-                  document.getElementById("loading-gif").style.display = "none";
+                  document.getElementById("loading").style.display = "none";
                 }
               );
               // Also refresh match after autofill
               renderMatch(token);
             }
           );
+        });
+        const trackerBtn = document.getElementById("open-tracker");
+        trackerBtn.addEventListener("click", () => {
+          chrome.tabs.create({ url: "http://localhost:3000/job-tracker" });
         });
         // Render match immediately when popup opens
         renderMatch(token);
@@ -79,6 +79,10 @@ document.addEventListener("DOMContentLoaded", () => {
       loginBtn.innerHTML = "Login to Auto Fill";
       loginBtn.addEventListener("click", () => {
         chrome.tabs.create({ url: "http://localhost:3000/login" });
+      });
+      const trackerBtn = document.getElementById("open-tracker");
+      trackerBtn.addEventListener("click", () => {
+        chrome.tabs.create({ url: "http://localhost:3000/job-tracker" });
       });
     }
   };

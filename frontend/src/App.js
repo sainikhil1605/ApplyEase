@@ -4,11 +4,13 @@ import "./App.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Login from "./pages/login";
 import Dashboard from "./pages/dashboard";
+import JobTracker from "./pages/job-tracker";
 import { useEffect } from "react";
 
 const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
   { path: "/dashboard", element: <Dashboard /> },
+  { path: "/job-tracker", element: <JobTracker /> },
 ]);
 
 function App() {

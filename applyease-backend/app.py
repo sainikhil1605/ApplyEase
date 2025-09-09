@@ -46,6 +46,22 @@ except Exception:
     pass
 security = HTTPBearer(auto_error=True)
 
+# Include additional routers (job tracker, cover letters)
+try:
+    from .routes.job_tracker import router as job_router
+    from .routes.cover_letters import router as cover_router
+except Exception:
+    try:
+        from routes.job_tracker import router as job_router
+        from routes.cover_letters import router as cover_router
+    except Exception:
+        job_router = None
+        cover_router = None
+if job_router is not None:
+    app.include_router(job_router)
+if cover_router is not None:
+    app.include_router(cover_router)
+
 
 @app.on_event("startup")
 def startup():
@@ -58,6 +74,15 @@ def startup():
     # Init Postgres connection pool
     _init_db()
     _ensure_schema()
+    # Include additional routers (job tracker, cover letters)
+    try:
+        from .routes.job_tracker import router as job_router
+        from .routes.cover_letters import router as cover_router
+    except Exception:
+        from routes.job_tracker import router as job_router
+        from routes.cover_letters import router as cover_router
+    app.include_router(job_router)
+    app.include_router(cover_router)
 
 
 def _embed(text: str) -> np.ndarray:

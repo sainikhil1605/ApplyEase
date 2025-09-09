@@ -15,6 +15,8 @@ const Dashboard = () => {
   const [tailored, setTailored] = useState("");
   const [tlError, setTlError] = useState("");
   const [history, setHistory] = useState([]);
+  const [letters, setLetters] = useState([]);
+  const [tab, setTab] = useState("builder"); // builder | letters
   useEffect(() => {
     const getData = () => {
       setError("");
@@ -38,6 +40,8 @@ const Dashboard = () => {
     } catch {}
     // Load tailored history
     axiosInstance.get("/tailored_resumes").then((r) => setHistory(r.data.items || [])).catch(() => {});
+    // Load cover letters list
+    axiosInstance.get("/cover_letters").then((r) => setLetters((r.data && r.data.items) || [])).catch(() => {});
   }, []);
   const handleSubmit = async () => {
     setError("");
@@ -99,6 +103,20 @@ const Dashboard = () => {
       setTlError(e?.response?.data?.detail || e?.message || "Failed to generate tailored CV");
     }
   };
+  const handleGenerateCoverLetter = async () => {
+    setTlError("");
+    if (!jobDescription.trim()) return setTlError("Paste a job description first.");
+    try {
+      const resp = await axiosInstance.post("/cover_letters/generate", { job_description: jobDescription, filename: "cover_letter.pdf", save: true, use_llm: true }, { responseType: "blob" });
+      const blob = new Blob([resp.data], { type: resp.headers['content-type'] || "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "cover_letter.pdf"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      // refresh letters tab list
+      try { const r = await axiosInstance.get('/cover_letters'); setLetters((r.data && r.data.items) || []); } catch {}
+    } catch (e) {
+      setTlError("Failed to generate cover letter");
+    }
+  };
   const downloadTailored = async () => {
     try {
       if (!tailored.trim()) return;
@@ -149,6 +167,9 @@ const Dashboard = () => {
             <img src={logo} alt="ApplyEase" className="ae-logo" />
             <div className="ae-title">ApplyEase Dashboard</div>
           </div>
+          <div className="ae-actions">
+            <a className="ae-btn secondary" href="/job-tracker">Open Job Tracker</a>
+          </div>
           {matchResult && (
             <div className="ae-badge">Match {matchResult.percent}%</div>
           )}
@@ -157,6 +178,12 @@ const Dashboard = () => {
         {loading && <div className="ae-note">Loading...</div>}
         {error && <div className="ae-error">{error}</div>}
 
+        <div className="ae-actions" style={{ marginBottom: 12 }}>
+          <button className={`ae-btn ${tab==='builder' ? '' : 'ghost'}`} onClick={() => setTab('builder')}>Resume Builder</button>
+          <button className={`ae-btn ${tab==='letters' ? '' : 'ghost'}`} onClick={() => setTab('letters')}>Cover Letters</button>
+        </div>
+
+        {tab === 'builder' && (
         <div className="ae-grid">
           <div className="ae-card">
             <h3>Profile & Resume</h3>
@@ -242,6 +269,7 @@ const Dashboard = () => {
             )}
             <div className="ae-actions" style={{ marginTop: 10 }}>
               <button className="ae-btn secondary" onClick={handleTailored}>Generate Tailored CV</button>
+              <button className="ae-btn" onClick={handleGenerateCoverLetter}>Generate Cover Letter</button>
               {tailored && (
                 <>
                   <button className="ae-btn ghost" onClick={downloadTailored}>Download Tailored PDF</button>
@@ -264,6 +292,28 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+        )}
+
+        {tab === 'letters' && (
+          <div className="ae-card">
+            <h3>Cover Letters</h3>
+            <div className="ae-actions" style={{ marginBottom: 8 }}>
+              <button className="ae-btn ghost" onClick={async () => { try { const r = await axiosInstance.get('/cover_letters'); setLetters((r.data && r.data.items) || []); } catch {} }}>Refresh</button>
+            </div>
+            {letters.length === 0 && <div className="ae-note">No cover letters yet. Generate one from Job Tracker.</div>}
+            {letters.map((it) => (
+              <div key={it.id} className="ae-actions" style={{ justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{it.title || 'Cover Letter'} {it.company ? `@ ${it.company}` : ''}</div>
+                  <div className="ae-note">{new Date(it.created_at).toLocaleString()}</div>
+                </div>
+                <div className="ae-actions">
+                  <button className="ae-btn ghost" onClick={async () => { try { const resp = await axiosInstance.get(`/cover_letters/download?id=${encodeURIComponent(it.id)}`, { responseType: 'blob' }); const blob = new Blob([resp.data], { type: resp.headers['content-type'] || 'application/pdf' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = it.filename || 'cover_letter.pdf'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); } catch {} }}>Download</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="ae-card" style={{ marginTop: 16 }}>
           <h3>Generate Custom Answer</h3>
