@@ -1,20 +1,23 @@
 ApplyEase — Local, Privacy‑First Job Application Assistant
 
 Overview
+
 - Generates Tailored CV based on Job Application.
   <img width="1436" height="853" alt="image" src="https://github.com/user-attachments/assets/b0498b43-6034-4d4b-98f1-5a0bb7c089fc" />
 
 - Auto‑fills common job application fields (first/last name, email, phone, links) and uploads your resume.
-- Computes a Resume ↔ Job Description match score with tech‑term highlights (matching/missing keywords).
-<img width="666" height="910" alt="image" src="https://github.com/user-attachments/assets/2a9a8d75-73ae-4e82-a6e3-8d300c74903a" />
 
+- Computes a Resume ↔ Job Description match score with tech‑term highlights (matching/missing keywords).
+  <img width="666" height="910" alt="image" src="https://github.com/user-attachments/assets/2a9a8d75-73ae-4e82-a6e3-8d300c74903a" />
 
 - Generates concise custom answers to application questions using a local LLM (no paid APIs).
 - NEW: Structured resume builder (summary, title, skills, multiple experiences, education) with templated tailored CV generation and PDF export.
 - NEW: Cover letters — generate LLM‑enhanced letters or clean templates; saved history with downloads.
 - NEW: Job Tracker — board and list view, drag‑and‑drop between stages (Saved → Applied → Interview → Offer → Rejected), quick cover‑letter button.
 - NEW: Extension auto‑tracking — captures an “Applied” job automatically on submit for many job sites.
+  <img width="1077" height="523" alt="image" src="https://github.com/user-attachments/assets/31895d92-fed8-4dde-92c4-84e23bc08075" />
 - Works via a Chrome extension with a small React dashboard and a FastAPI backend.
+  <img width="1512" height="853" alt="image" src="https://github.com/user-attachments/assets/9723c897-496d-46ec-955e-51a2f1729707" />
 
 Architecture
 
@@ -104,14 +107,17 @@ Key Endpoints (Backend on :8000)
 - POST `/upsert_resume` (service) → `{ ok, user_id }`
 
 - Structured resume sections
+
   - GET `/resume_sections` (Bearer) → `{ summary, title, experiences, education, skills }`
   - POST `/resume_sections` (Bearer) → upserts sections and refreshes embedding/keywords
 
 - Tailored resume (templated)
+
   - POST `/generate_tailored_resume` (Bearer) → `{ id, download_url }` (PDF saved in history)
   - GET `/tailored_resumes` / GET `/tailored_resume_download?id=...`
 
 - Cover letters
+
   - POST `/cover_letters/generate` (Bearer) → PDF stream; body supports `{ company, title, job_description, filename, save, use_llm }`
   - GET `/cover_letters`, GET `/cover_letters/download?id=...`
 
