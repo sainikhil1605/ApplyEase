@@ -179,6 +179,9 @@ def _ensure_schema():
                 );
                 """
             )
+            # Super-admin flag + per-user LLM settings (additive — safe on existing DBs)
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'::jsonb;")
             # Optional ANN index for later nearest-neighbor queries
             try:
                 cur.execute(
@@ -554,6 +557,8 @@ class UserOut(BaseModel):
     location: Optional[str] = None
     urls: Optional[list] = None
     eeo: Optional[list] = None
+    is_admin: bool = False
+    settings: Optional[dict] = None
 
 
 def _hash_password(password: str) -> str:
@@ -568,11 +573,12 @@ def _check_password(password: str, hashed: str) -> bool:
         return False
 
 
-def _jwt_create(user_id: str, email: str) -> str:
+def _jwt_create(user_id: str, email: str, is_admin: bool = False) -> str:
     payload = {
         "_id": user_id,
         "email": email,
-        "role": "user",
+        "role": "admin" if is_admin else "user",
+        "is_admin": is_admin,
         "exp": datetime.utcnow() + timedelta(minutes=JWT_EXPIRES_IN_MIN),
         "iat": datetime.utcnow(),
     }
@@ -594,6 +600,21 @@ def _current_user(creds: HTTPAuthorizationCredentials = Depends(security)) -> st
     return payload["_id"]
 
 
+def _current_user_payload(creds: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    return _jwt_verify(creds.credentials)
+
+
+def _require_admin(payload: dict = Depends(_current_user_payload)) -> dict:
+    if not payload.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return payload
+
+
+# SELECT column order: id(0) first_name(1) last_name(2) email(3) password_hash(4)
+#                      phone(5) location(6) urls(7) eeo(8) is_admin(9) settings(10)
+_USER_COLS = "id, first_name, last_name, email, password_hash, phone, location, urls, eeo, is_admin, settings"
+
+
 def _user_row_to_out(row) -> UserOut:
     return UserOut(
         id=row[0],
@@ -604,6 +625,8 @@ def _user_row_to_out(row) -> UserOut:
         location=row[6],
         urls=row[7] or [],
         eeo=row[8] or [],
+        is_admin=bool(row[9]) if len(row) > 9 else False,
+        settings=row[10] if len(row) > 10 else None,
     )
 
 
@@ -618,7 +641,7 @@ def signup(req: SignupRequest):
                 """
                 INSERT INTO users (id, first_name, last_name, email, password_hash, phone, location, urls, eeo)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING id, first_name, last_name, email, password_hash, phone, location, urls, eeo
+                RETURNING id, first_name, last_name, email, password_hash, phone, location, urls, eeo, is_admin, settings
                 """,
                 (
                     user_id,
@@ -637,7 +660,8 @@ def signup(req: SignupRequest):
         raise HTTPException(status_code=400, detail="Email already exists")
     finally:
         _put_conn(conn)
-    token = _jwt_create(user_id, req.email.lower())
+    is_admin = bool(row[9]) if len(row) > 9 else False
+    token = _jwt_create(user_id, req.email.lower(), is_admin=is_admin)
     user_out = _user_row_to_out(row)
     return {"token": token, "user": user_out}
 
@@ -648,7 +672,7 @@ def login(req: LoginRequest):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, first_name, last_name, email, password_hash, phone, location, urls, eeo FROM users WHERE email = %s",
+                f"SELECT {_USER_COLS} FROM users WHERE email = %s",
                 (req.email.lower(),),
             )
             row = cur.fetchone()
@@ -658,8 +682,9 @@ def login(req: LoginRequest):
                 raise HTTPException(status_code=400, detail="Invalid credentials")
     finally:
         _put_conn(conn)
-    token = _jwt_create(row[0], row[3])
-    return {"token": token}
+    is_admin = bool(row[9]) if len(row) > 9 else False
+    token = _jwt_create(row[0], row[3], is_admin=is_admin)
+    return {"token": token, "user": _user_row_to_out(row)}
 
 
 @app.get("/user", response_model=UserOut)
@@ -668,7 +693,7 @@ def get_user(user_id: str = Depends(_current_user)):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, first_name, last_name, email, password_hash, phone, location, urls, eeo FROM users WHERE id = %s",
+                f"SELECT {_USER_COLS} FROM users WHERE id = %s",
                 (user_id,),
             )
             row = cur.fetchone()
@@ -1221,3 +1246,54 @@ def use_tailored(body: UseTailoredBody, user_id: str = Depends(_current_user)):
     finally:
         _put_conn(conn2)
     return {"ok": True}
+
+
+# ─── Admin endpoints ──────────────────────────────────────────────────────────
+
+@app.get("/admin/users")
+def admin_list_users(_: dict = Depends(_require_admin)):
+    """Liste tous les utilisateurs. Réservé aux comptes is_admin=true."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {_USER_COLS} FROM users ORDER BY created_at DESC")
+            rows = cur.fetchall()
+            return {"users": [_user_row_to_out(r) for r in rows], "total": len(rows)}
+    finally:
+        _put_conn(conn)
+
+
+# ─── User settings endpoint ───────────────────────────────────────────────────
+
+class UserSettingsRequest(BaseModel):
+    llm_provider: Optional[str] = None   # "ollama" | "lmstudio" | "openai"
+    llm_model: Optional[str] = None
+    llm_base_url: Optional[str] = None
+
+
+@app.patch("/user/settings")
+def update_user_settings(req: UserSettingsRequest, user_id: str = Depends(_current_user)):
+    """Met à jour les préférences LLM de l'utilisateur (stockées dans settings JSONB)."""
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No settings provided")
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            # Merge dans le JSONB existant plutôt que remplacer
+            cur.execute(
+                """
+                UPDATE users
+                   SET settings = COALESCE(settings, '{}'::jsonb) || %s::jsonb,
+                       updated_at = now()
+                 WHERE id = %s
+                RETURNING settings
+                """,
+                (psycopg2.extras.Json(updates), user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+            return {"settings": row[0]}
+    finally:
+        _put_conn(conn)
