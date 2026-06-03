@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Variables d'environnement à configurer dans Railway Dashboard :
+# PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE (depuis Supabase)
+# JWT_KEY (générer avec : python -c "import secrets; print(secrets.token_hex(32))")
+# JWT_EXPIRES_IN_MIN (ex: 1440 pour 24h)
+# OPENAI_API_KEY (optionnel)
