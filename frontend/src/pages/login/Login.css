@@ -1,39 +1,243 @@
-/* Login / Signup page styling */
+/* Login / Signup - Modern Glassmorphism UI */
 
 .ae-auth {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
-  color: #e5e7eb;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  background: #0a0a0f;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animated Background */
+.ae-auth::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0f0c29 0%, #1a1a2e 50%, #16213e 100%);
+  z-index: 0;
+}
+
+.ae-auth::after {
+  content: '';
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.3;
+  top: -150px;
+  right: -150px;
+  animation: float 20s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, 30px) scale(1.05); }
 }
 
 .ae-auth-card {
-  width: 380px;
-  background: #0b1021;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px;
-  padding: 22px 20px 18px;
-  box-shadow: 0 18px 36px rgba(0,0,0,0.35);
+  width: 100%;
+  max-width: 420px;
+  margin: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 36px 32px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  z-index: 1;
 }
 
-.ae-auth-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.ae-auth-logo { width: 36px; height: 36px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
-.ae-auth-title { font-weight: 700; font-size: 18px; }
+.ae-auth-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
 
-.ae-tabs { display: flex; gap: 8px; margin: 8px 0 16px; }
-.ae-tab { flex: 1; padding: 10px; text-align: center; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.08); color: #cbd5e1; }
-.ae-tab.active { background: #0d9488; color: white; border-color: #0d9488; }
+.ae-auth-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s ease;
+}
 
-.ae-field { margin-bottom: 12px; }
-.ae-field label { display: block; font-size: 12px; color: #aab0c0; margin-bottom: 6px; }
-.ae-input { width: 100%; background: #0a0f1e; color: #e5e7eb; border: 1px solid rgba(255,255,255,0.08); outline: none; padding: 10px 12px; border-radius: 10px; }
-.ae-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.ae-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px; }
-.ae-btn { background: #2563eb; border: none; color: white; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
-.ae-btn:disabled { opacity: 0.7; cursor: not-allowed; }
-.ae-link { color: #93c5fd; cursor: pointer; font-size: 13px; }
-.ae-error { color: #fecaca; margin: 8px 0; min-height: 18px; font-size: 13px; }
+.ae-auth-logo:hover {
+  transform: scale(1.05) rotate(5deg);
+}
 
+.ae-auth-title {
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+/* Tabs */
+.ae-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 14px;
+}
+
+.ae-tab {
+  flex: 1;
+  padding: 12px;
+  text-align: center;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.ae-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+}
+
+.ae-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+/* Form */
+.ae-field {
+  margin-bottom: 18px;
+}
+
+.ae-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.ae-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  outline: none;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.ae-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.ae-input::placeholder {
+  color: #64748b;
+}
+
+.ae-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* Actions */
+.ae-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.ae-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  padding: 14px 28px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+.ae-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+}
+
+.ae-btn:active {
+  transform: translateY(0);
+}
+
+.ae-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.ae-link {
+  color: #a5b4fc;
+  cursor: pointer;
+  font-size: 13px;
+  transition: color 0.2s ease;
+}
+
+.ae-link:hover {
+  color: #c4b5fd;
+}
+
+.ae-error {
+  min-height: 20px;
+  font-size: 13px;
+  color: #f87171;
+  margin: 8px 0;
+}
+
+.ae-note {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .ae-auth-card {
+    padding: 28px 24px;
+    border-radius: 20px;
+  }
+  
+  .ae-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .ae-actions {
+    flex-direction: column-reverse;
+    gap: 16px;
+  }
+  
+  .ae-btn {
+    width: 100%;
+  }
+}

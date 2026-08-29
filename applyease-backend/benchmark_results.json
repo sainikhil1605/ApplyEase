@@ -1,0 +1,200 @@
+{
+  "summary": {
+    "model": "qwen2.5:7b",
+    "total_questions": 8,
+    "successful": 8,
+    "failed": 0,
+    "avg_response_time_ms": 12692.03,
+    "min_response_time_ms": 8911.07,
+    "max_response_time_ms": 16087.14,
+    "avg_word_count": 90.0,
+    "avg_relevance_score": 62.5,
+    "time_grade": "D",
+    "relevance_grade": "A+",
+    "overall_grade": "B"
+  },
+  "detailed_results": [
+    {
+      "success": true,
+      "answer": "At TechCorp, I led the development of microservices architecture serving 1M+ daily users, enhancing system scalability and reliability. By implementing caching strategies and optimizing queries with FastAPI, we reduced API latency by 60%. This project showcased my proficiency in Python (FastAPI), cloud platforms (AWS services), and containerization (Docker, Kubernetes). I also mentored a team of junior developers through code reviews and pair programming, fostering a collaborative environment.",
+      "response_time_ms": 15922.86,
+      "word_count": 67,
+      "relevance_score": 66.7,
+      "expected_keywords": [
+        "microservices",
+        "architecture",
+        "team",
+        "led",
+        "optimization",
+        "performance"
+      ],
+      "found_keywords": [
+        "microservices",
+        "architecture",
+        "team",
+        "led"
+      ],
+      "category": "Experience",
+      "question": "Describe a challenging technical project you led and its outcome."
+    },
+    {
+      "success": true,
+      "answer": "At TechCorp, I faced the challenge of reducing API latency for our microservices architecture serving 1 million daily users. By implementing caching strategies with Redis and optimizing database queries using PostgreSQL, I successfully reduced latency by 60%. This project required strong proficiency in Python (for backend services), deep knowledge of databases, and experience with cloud platforms like AWS to deploy the solution efficiently. Additionally, this experience demonstrated my ability to optimize system performance, collaborate with cross-functional teams, and mentor junior developers through code reviews and pair programming.",
+      "response_time_ms": 11418.52,
+      "word_count": 87,
+      "relevance_score": 66.7,
+      "expected_keywords": [
+        "latency",
+        "caching",
+        "optimization",
+        "reduced",
+        "solution",
+        "analysis"
+      ],
+      "found_keywords": [
+        "latency",
+        "caching",
+        "reduced",
+        "solution"
+      ],
+      "category": "Problem Solving",
+      "question": "Tell us about a time you solved a complex technical problem."
+    },
+    {
+      "success": true,
+      "answer": "As a Senior Software Engineer with 5+ years of experience, I have led a team of 4 junior developers at TechCorp, focusing on code reviews and pair programming to foster learning and growth. My approach involves setting clear goals and expectations, providing regular feedback, and encouraging independent problem-solving. I also facilitate knowledge sharing through workshops and pair programming sessions. This mentorship not only enhances the skills of my mentees but also contributes to a collaborative team culture. My background in mentoring aligns well with the role's requirement for strong communication and collaboration skills.",
+      "response_time_ms": 11956.24,
+      "word_count": 93,
+      "relevance_score": 83.3,
+      "expected_keywords": [
+        "mentor",
+        "code review",
+        "pair programming",
+        "team",
+        "guidance",
+        "junior"
+      ],
+      "found_keywords": [
+        "mentor",
+        "code review",
+        "pair programming",
+        "team",
+        "junior"
+      ],
+      "category": "Teamwork",
+      "question": "How do you approach mentoring junior developers?"
+    },
+    {
+      "success": true,
+      "answer": "I am excited about the opportunity to contribute to the Cloud Platform team at your organization, where I can utilize my extensive experience in backend development across multiple languages and frameworks, particularly Python and Go, which align well with the role requirements. My proficiency in designing scalable services and optimizing system performance, coupled with a solid background in cloud platforms such as AWS and Kubernetes, makes me a strong fit for this position. Additionally, my history of mentoring junior developers and participating in cross-functional collaborations ensures effective teamwork and knowledge sharing. I am eager to leverage these skills to build robust backend infrastructure that supports high-scale applications.",
+      "response_time_ms": 12753.98,
+      "word_count": 107,
+      "relevance_score": 100.0,
+      "expected_keywords": [
+        "Python",
+        "AWS",
+        "backend",
+        "scalable",
+        "experience",
+        "cloud"
+      ],
+      "found_keywords": [
+        "Python",
+        "AWS",
+        "backend",
+        "scalable",
+        "experience",
+        "cloud"
+      ],
+      "category": "Technical Skills",
+      "question": "Why are you interested in this role and what skills make you a good fit?"
+    },
+    {
+      "success": true,
+      "answer": "In my roles at TechCorp and StartupXYZ, I have consistently thrived in fast-paced environments. At TechCorp, leading the development of microservices for 1M+ daily users required rapid decision-making and adaptability. My experience with caching strategies, query optimization, and implementing automated testing pipelines demonstrated my ability to meet tight deadlines while maintaining high standards. Additionally, mentoring a team of junior developers and participating in code reviews further showcased my capability to support a fast-paced, collaborative environment. At StartupXYZ, the real-time data processing pipeline handling 500K events/hour demanded quick problem-solving and efficient collaboration with cross-functional teams. These experiences have equipped me with the skills necessary to excel in a dynamic backend engineering role within your Cloud Platform team.",
+      "response_time_ms": 16087.14,
+      "word_count": 116,
+      "relevance_score": 50.0,
+      "expected_keywords": [
+        "agile",
+        "deadline",
+        "priority",
+        "team",
+        "delivery",
+        "collaboration"
+      ],
+      "found_keywords": [
+        "deadline",
+        "team",
+        "collaboration"
+      ],
+      "category": "Leadership",
+      "question": "Describe your experience working in a fast-paced environment."
+    },
+    {
+      "success": true,
+      "answer": "I am particularly enthusiastic about exploring the integration of serverless architectures with containerization technologies like Kubernetes. This interest aligns well with my existing experience in cloud platforms (AWS) and containerization tools (Docker). Additionally, I am eager to deepen my understanding of distributed systems, which I believe will enhance my ability to design scalable backend services. My background in real-time data processing and microservices architecture at TechCorp has prepared me for tackling these challenges, and I look forward to applying my skills in a cloud platform role that focuses on system performance optimization and reliability.",
+      "response_time_ms": 12019.0,
+      "word_count": 94,
+      "relevance_score": 33.3,
+      "expected_keywords": [
+        "cloud",
+        "distributed",
+        "learning",
+        "technology",
+        "interested",
+        "growth"
+      ],
+      "found_keywords": [
+        "cloud",
+        "distributed"
+      ],
+      "category": "Growth",
+      "question": "What areas of technology are you most excited to learn more about?"
+    },
+    {
+      "success": true,
+      "answer": "During my tenure at TechCorp, I encountered disagreements regarding the implementation of a microservices architecture. Initially, some team members favored monolithic solutions for simplicity. However, considering long-term scalability and maintenance, I proposed adopting microservices. To address concerns about complexity, I presented use cases where microservices outperformed monoliths in terms of fault isolation and resource utilization. We held a series of discussions and conducted small-scale pilots to demonstrate the benefits. This approach fostered a collaborative environment and ultimately convinced the team to adopt microservices, aligning with our goals for scalable infrastructure.",
+      "response_time_ms": 12467.43,
+      "word_count": 90,
+      "relevance_score": 66.7,
+      "expected_keywords": [
+        "discussion",
+        "team",
+        "approach",
+        "solution",
+        "compromise",
+        "communication"
+      ],
+      "found_keywords": [
+        "discussion",
+        "team",
+        "approach",
+        "solution"
+      ],
+      "category": "Conflict Resolution",
+      "question": "Tell us about a time you disagreed with a technical decision. How did you handle it?"
+    },
+    {
+      "success": true,
+      "answer": "My most significant professional achievement was leading the development of microservices architecture at TechCorp, which served 1M+ daily users. I reduced API latency by 60% through caching strategies and query optimization, significantly enhancing user experience. This project demonstrated my expertise in scalable backend services and system optimization. My role also included mentoring a team of junior developers, fostering a collaborative environment that enhanced overall team performance.",
+      "response_time_ms": 8911.07,
+      "word_count": 66,
+      "relevance_score": 33.3,
+      "expected_keywords": [
+        "users",
+        "impact",
+        "improvement",
+        "led",
+        "successful",
+        "achievement"
+      ],
+      "found_keywords": [
+        "users",
+        "achievement"
+      ],
+      "category": "Impact",
+      "question": "What is your most significant professional achievement?"
+    }
+  ]
+}

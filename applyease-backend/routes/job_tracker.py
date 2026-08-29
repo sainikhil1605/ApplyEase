@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -79,7 +82,11 @@ def _ensure_schema():
         _put_conn(conn)
 
 
-JWT_KEY = os.getenv("JWT_KEY", "dev-secret")
+JWT_KEY = os.getenv("JWT_KEY")
+if not JWT_KEY:
+    import warnings
+    warnings.warn("JWT_KEY not set in job_tracker! Using insecure default.")
+    JWT_KEY = "dev-secret-CHANGE-ME"
 
 
 def _current_user(creds: HTTPAuthorizationCredentials = Depends(security)) -> str:

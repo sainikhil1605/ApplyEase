@@ -1,2 +1,22 @@
 venv
 .venv
+
+ApplyEase\applyease-backend\.env
+
+.env
+
+# Build artifacts
+dist/
+build/
+release/
+*.spec
+__pycache__/
+*.pyc
+
+# Frontend build in backend (for portable release)
+applyease-backend/frontend_build/
+
+# IDE
+.idea/
+*.swp
+*.swo

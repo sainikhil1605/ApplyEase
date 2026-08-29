@@ -1,12 +1,13 @@
 /* eslint-disable no-undef */
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom"; // eslint-disable-line
 import axiosInstance from "../../utils/axiosInstance";
 import "./Login.css";
-import { useEffect } from "react";
 
 const Login = () => {
   const navigate = useNavigate();
+
+  // All hooks must be called unconditionally before any early return
   const [mode, setMode] = useState("login"); // 'login' | 'signup'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -34,17 +35,18 @@ const Login = () => {
 
   const persistToken = (token) => {
     localStorage.setItem("token", token);
+    // Try multiple methods to sync token to extension
     try {
+      // Method 1: Direct message to extension (requires correct ID)
       if (window.chrome?.runtime?.sendMessage) {
-        chrome.runtime.sendMessage("hdihofgbikbakkcghaaobjkcjphlmdfb", {
-          action: "AddToken",
-          token,
-        });
+        // Try without specifying extension ID - works if page is in externally_connectable
+        chrome.runtime.sendMessage({ action: "AddToken", token });
       }
     } catch (e) {
       console.warn("Extension token send failed", e);
     }
     try {
+      // Method 2: Window message (content script listens)
       window.postMessage({ source: "applyease", action: "AddToken", token }, "*");
     } catch {}
   };
@@ -97,11 +99,10 @@ const Login = () => {
     }
   };
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    const t = localStorage.getItem("token");
-    if (t) navigate("/dashboard");
-  }, [navigate]);
+  // Early redirect — placed after all hooks to satisfy Rules of Hooks
+  if (localStorage.getItem("token")) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="ae-auth">

@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file before any other imports that use env vars
+
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -179,6 +182,70 @@ def _ensure_schema():
                 );
                 """
             )
+            # Extended profile fields
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS address_line1 text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS address_line2 text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS city text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS state text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS country text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS zip_code text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS current_company text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_salary text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS notice_period text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS relocation text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS available_start_date text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS work_experience jsonb DEFAULT '[]'::jsonb;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS education jsonb DEFAULT '[]'::jsonb;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS skills jsonb DEFAULT '[]'::jsonb;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS certifications jsonb DEFAULT '[]'::jsonb;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_answers jsonb DEFAULT '{}'::jsonb;")
+            
+            # === NEW EXTENDED PROFILE FIELDS ===
+            # Personal Details
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS gender text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS pronouns text;")
+            
+            # Work Authorization
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS work_authorization text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS visa_type text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS visa_expiry text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS requires_sponsorship text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS legally_authorized text;")
+            
+            # Employment Details
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS years_of_experience text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS current_salary text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS salary_currency text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS employment_type text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS remote_preference text;")
+            
+            # Application Questions
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS hear_about_us text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS applied_before text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS worked_here_before text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_relatives_here text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_url text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS github_url text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS portfolio_url text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS website_url text;")
+            
+            # Additional Background
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS languages jsonb DEFAULT '[]'::jsonb;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_clearance text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS willing_to_travel text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_drivers_license text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_vehicle text;")
+            
+            # Disability & Veteran Status
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS disability_status text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS veteran_status text;")
+            
+            # Emergency Contact
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_name text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_phone text;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact_relationship text;")
             # Optional ANN index for later nearest-neighbor queries
             try:
                 cur.execute(
@@ -511,6 +578,24 @@ def match_for_user(req: MatchForUserRequest):
     finally:
         _put_conn(conn)
 
+    # Handle pgvector Vector object - convert to list if needed
+    # The Vector class from pgvector doesn't have tolist() but can be converted via numpy or iteration
+    try:
+        if hasattr(emb_list, 'tolist'):
+            emb_list = emb_list.tolist()
+        elif hasattr(emb_list, '__array__'):
+            # numpy array or array-like
+            emb_list = np.array(emb_list).tolist()
+        elif hasattr(emb_list, '__iter__') and not isinstance(emb_list, (list, tuple, str)):
+            # Try converting to list by iterating
+            emb_list = [float(x) for x in emb_list]
+    except Exception:
+        # Fallback: try direct string conversion for pgvector Vector
+        try:
+            emb_list = [float(x) for x in str(emb_list).strip('[]').split(',')]
+        except Exception:
+            raise HTTPException(status_code=500, detail="Failed to convert stored embedding")
+    
     resume_vec = np.asarray(emb_list, dtype=np.float32)
     jd_vec = _normalize(_embed(req.job_description))
     score = float(np.dot(jd_vec, resume_vec))
@@ -525,7 +610,11 @@ def match_for_user(req: MatchForUserRequest):
 
 # ===== Auth & Users (migrated from Node) =====
 
-JWT_KEY = os.getenv("JWT_KEY", "dev-secret")
+JWT_KEY = os.getenv("JWT_KEY")
+if not JWT_KEY:
+    import warnings
+    warnings.warn("JWT_KEY not set! Using insecure default. Set JWT_KEY in .env for production!")
+    JWT_KEY = "dev-secret-CHANGE-ME"
 JWT_EXPIRES_IN_MIN = int(os.getenv("JWT_EXPIRES_IN_MIN", "60"))
 
 
@@ -554,6 +643,62 @@ class UserOut(BaseModel):
     location: Optional[str] = None
     urls: Optional[list] = None
     eeo: Optional[list] = None
+    # Extended profile fields
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    zip_code: Optional[str] = None
+    current_company: Optional[str] = None
+    desired_salary: Optional[str] = None
+    notice_period: Optional[str] = None
+    relocation: Optional[str] = None
+    available_start_date: Optional[str] = None
+    work_experience: Optional[list] = None
+    education: Optional[list] = None
+    skills: Optional[list] = None
+    certifications: Optional[list] = None
+    custom_answers: Optional[dict] = None
+    # Personal Details
+    date_of_birth: Optional[str] = None
+    nationality: Optional[str] = None
+    gender: Optional[str] = None
+    pronouns: Optional[str] = None
+    # Work Authorization
+    work_authorization: Optional[str] = None
+    visa_type: Optional[str] = None
+    visa_expiry: Optional[str] = None
+    requires_sponsorship: Optional[str] = None
+    legally_authorized: Optional[str] = None
+    # Employment Details
+    years_of_experience: Optional[str] = None
+    current_salary: Optional[str] = None
+    salary_currency: Optional[str] = None
+    employment_type: Optional[str] = None
+    remote_preference: Optional[str] = None
+    # Application Questions
+    hear_about_us: Optional[str] = None
+    applied_before: Optional[str] = None
+    worked_here_before: Optional[str] = None
+    has_relatives_here: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    website_url: Optional[str] = None
+    # Additional Background
+    languages: Optional[list] = None
+    security_clearance: Optional[str] = None
+    willing_to_travel: Optional[str] = None
+    has_drivers_license: Optional[str] = None
+    has_vehicle: Optional[str] = None
+    # Disability & Veteran Status
+    disability_status: Optional[str] = None
+    veteran_status: Optional[str] = None
+    # Emergency Contact
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
 
 
 def _hash_password(password: str) -> str:
@@ -604,11 +749,70 @@ def _user_row_to_out(row) -> UserOut:
         location=row[6],
         urls=row[7] or [],
         eeo=row[8] or [],
+        address_line1=row[9] if len(row) > 9 else None,
+        address_line2=row[10] if len(row) > 10 else None,
+        city=row[11] if len(row) > 11 else None,
+        state=row[12] if len(row) > 12 else None,
+        country=row[13] if len(row) > 13 else None,
+        zip_code=row[14] if len(row) > 14 else None,
+        current_company=row[15] if len(row) > 15 else None,
+        desired_salary=row[16] if len(row) > 16 else None,
+        notice_period=row[17] if len(row) > 17 else None,
+        relocation=row[18] if len(row) > 18 else None,
+        available_start_date=row[19] if len(row) > 19 else None,
+        work_experience=row[20] if len(row) > 20 else [],
+        education=row[21] if len(row) > 21 else [],
+        skills=row[22] if len(row) > 22 else [],
+        certifications=row[23] if len(row) > 23 else [],
+        custom_answers=row[24] if len(row) > 24 else {},
+        # New fields
+        date_of_birth=row[25] if len(row) > 25 else None,
+        nationality=row[26] if len(row) > 26 else None,
+        gender=row[27] if len(row) > 27 else None,
+        pronouns=row[28] if len(row) > 28 else None,
+        work_authorization=row[29] if len(row) > 29 else None,
+        visa_type=row[30] if len(row) > 30 else None,
+        visa_expiry=row[31] if len(row) > 31 else None,
+        requires_sponsorship=row[32] if len(row) > 32 else None,
+        legally_authorized=row[33] if len(row) > 33 else None,
+        years_of_experience=row[34] if len(row) > 34 else None,
+        current_salary=row[35] if len(row) > 35 else None,
+        salary_currency=row[36] if len(row) > 36 else None,
+        employment_type=row[37] if len(row) > 37 else None,
+        remote_preference=row[38] if len(row) > 38 else None,
+        hear_about_us=row[39] if len(row) > 39 else None,
+        applied_before=row[40] if len(row) > 40 else None,
+        worked_here_before=row[41] if len(row) > 41 else None,
+        has_relatives_here=row[42] if len(row) > 42 else None,
+        linkedin_url=row[43] if len(row) > 43 else None,
+        github_url=row[44] if len(row) > 44 else None,
+        portfolio_url=row[45] if len(row) > 45 else None,
+        website_url=row[46] if len(row) > 46 else None,
+        languages=row[47] if len(row) > 47 else [],
+        security_clearance=row[48] if len(row) > 48 else None,
+        willing_to_travel=row[49] if len(row) > 49 else None,
+        has_drivers_license=row[50] if len(row) > 50 else None,
+        has_vehicle=row[51] if len(row) > 51 else None,
+        disability_status=row[52] if len(row) > 52 else None,
+        veteran_status=row[53] if len(row) > 53 else None,
+        emergency_contact_name=row[54] if len(row) > 54 else None,
+        emergency_contact_phone=row[55] if len(row) > 55 else None,
+        emergency_contact_relationship=row[56] if len(row) > 56 else None,
     )
 
 
 @app.post("/signup")
 def signup(req: SignupRequest):
+    # Password strength validation
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not any(c.isupper() for c in req.password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in req.password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in req.password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+    
     user_id = str(uuid.uuid4())
     pw_hash = _hash_password(req.password)
     conn = _conn()
@@ -668,7 +872,19 @@ def get_user(user_id: str = Depends(_current_user)):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, first_name, last_name, email, password_hash, phone, location, urls, eeo FROM users WHERE id = %s",
+                """SELECT id, first_name, last_name, email, password_hash, phone, location, urls, eeo,
+                   address_line1, address_line2, city, state, country, zip_code,
+                   current_company, desired_salary, notice_period, relocation, available_start_date,
+                   work_experience, education, skills, certifications, custom_answers,
+                   date_of_birth, nationality, gender, pronouns,
+                   work_authorization, visa_type, visa_expiry, requires_sponsorship, legally_authorized,
+                   years_of_experience, current_salary, salary_currency, employment_type, remote_preference,
+                   hear_about_us, applied_before, worked_here_before, has_relatives_here,
+                   linkedin_url, github_url, portfolio_url, website_url,
+                   languages, security_clearance, willing_to_travel, has_drivers_license, has_vehicle,
+                   disability_status, veteran_status,
+                   emergency_contact_name, emergency_contact_phone, emergency_contact_relationship
+                   FROM users WHERE id = %s""",
                 (user_id,),
             )
             row = cur.fetchone()
@@ -689,19 +905,94 @@ async def update_user(
     location: Optional[str] = Form(None),
     urls: Optional[str] = Form(None),  # JSON string array
     eeo: Optional[str] = Form(None),   # JSON string array
+    # Extended profile fields
+    address_line1: Optional[str] = Form(None),
+    address_line2: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
+    zip_code: Optional[str] = Form(None),
+    current_company: Optional[str] = Form(None),
+    desired_salary: Optional[str] = Form(None),
+    notice_period: Optional[str] = Form(None),
+    relocation: Optional[str] = Form(None),
+    available_start_date: Optional[str] = Form(None),
+    work_experience: Optional[str] = Form(None),  # JSON string array
+    education: Optional[str] = Form(None),  # JSON string array
+    skills: Optional[str] = Form(None),  # JSON string array
+    certifications: Optional[str] = Form(None),  # JSON string array
+    custom_answers: Optional[str] = Form(None),  # JSON string object
+    # Personal Details
+    date_of_birth: Optional[str] = Form(None),
+    nationality: Optional[str] = Form(None),
+    gender: Optional[str] = Form(None),
+    pronouns: Optional[str] = Form(None),
+    # Work Authorization
+    work_authorization: Optional[str] = Form(None),
+    visa_type: Optional[str] = Form(None),
+    visa_expiry: Optional[str] = Form(None),
+    requires_sponsorship: Optional[str] = Form(None),
+    legally_authorized: Optional[str] = Form(None),
+    # Employment Details
+    years_of_experience: Optional[str] = Form(None),
+    current_salary: Optional[str] = Form(None),
+    salary_currency: Optional[str] = Form(None),
+    employment_type: Optional[str] = Form(None),
+    remote_preference: Optional[str] = Form(None),
+    # Application Questions
+    hear_about_us: Optional[str] = Form(None),
+    applied_before: Optional[str] = Form(None),
+    worked_here_before: Optional[str] = Form(None),
+    has_relatives_here: Optional[str] = Form(None),
+    linkedin_url: Optional[str] = Form(None),
+    github_url: Optional[str] = Form(None),
+    portfolio_url: Optional[str] = Form(None),
+    website_url: Optional[str] = Form(None),
+    # Additional Background
+    languages: Optional[str] = Form(None),  # JSON string array
+    security_clearance: Optional[str] = Form(None),
+    willing_to_travel: Optional[str] = Form(None),
+    has_drivers_license: Optional[str] = Form(None),
+    has_vehicle: Optional[str] = Form(None),
+    # Disability & Veteran Status
+    disability_status: Optional[str] = Form(None),
+    veteran_status: Optional[str] = Form(None),
+    # Emergency Contact
+    emergency_contact_name: Optional[str] = Form(None),
+    emergency_contact_phone: Optional[str] = Form(None),
+    emergency_contact_relationship: Optional[str] = Form(None),
+    # Resume file
     resume: Optional[UploadFile] = File(None),
 ):
     # Parse optional JSON fields
     import json as _json
     urls_val = None
     eeo_val = None
+    work_exp_val = None
+    edu_val = None
+    skills_val = None
+    certs_val = None
+    custom_ans_val = None
+    languages_val = None
     try:
         if urls:
             urls_val = _json.loads(urls)
         if eeo:
             eeo_val = _json.loads(eeo)
+        if work_experience:
+            work_exp_val = _json.loads(work_experience)
+        if education:
+            edu_val = _json.loads(education)
+        if skills:
+            skills_val = _json.loads(skills)
+        if certifications:
+            certs_val = _json.loads(certifications)
+        if custom_answers:
+            custom_ans_val = _json.loads(custom_answers)
+        if languages:
+            languages_val = _json.loads(languages)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON in urls/eeo")
+        raise HTTPException(status_code=400, detail="Invalid JSON in one of the fields")
 
     # Update user profile
     conn = _conn()
@@ -718,12 +1009,80 @@ async def update_user(
             add("email", email)
             add("phone", phone)
             add("location", location)
+            add("address_line1", address_line1)
+            add("address_line2", address_line2)
+            add("city", city)
+            add("state", state)
+            add("country", country)
+            add("zip_code", zip_code)
+            add("current_company", current_company)
+            add("desired_salary", desired_salary)
+            add("notice_period", notice_period)
+            add("relocation", relocation)
+            add("available_start_date", available_start_date)
+            # Personal Details
+            add("date_of_birth", date_of_birth)
+            add("nationality", nationality)
+            add("gender", gender)
+            add("pronouns", pronouns)
+            # Work Authorization
+            add("work_authorization", work_authorization)
+            add("visa_type", visa_type)
+            add("visa_expiry", visa_expiry)
+            add("requires_sponsorship", requires_sponsorship)
+            add("legally_authorized", legally_authorized)
+            # Employment Details
+            add("years_of_experience", years_of_experience)
+            add("current_salary", current_salary)
+            add("salary_currency", salary_currency)
+            add("employment_type", employment_type)
+            add("remote_preference", remote_preference)
+            # Application Questions
+            add("hear_about_us", hear_about_us)
+            add("applied_before", applied_before)
+            add("worked_here_before", worked_here_before)
+            add("has_relatives_here", has_relatives_here)
+            add("linkedin_url", linkedin_url)
+            add("github_url", github_url)
+            add("portfolio_url", portfolio_url)
+            add("website_url", website_url)
+            # Additional Background
+            add("security_clearance", security_clearance)
+            add("willing_to_travel", willing_to_travel)
+            add("has_drivers_license", has_drivers_license)
+            add("has_vehicle", has_vehicle)
+            # Disability & Veteran Status
+            add("disability_status", disability_status)
+            add("veteran_status", veteran_status)
+            # Emergency Contact
+            add("emergency_contact_name", emergency_contact_name)
+            add("emergency_contact_phone", emergency_contact_phone)
+            add("emergency_contact_relationship", emergency_contact_relationship)
+            # JSON fields
             if urls_val is not None:
                 set_cols.append("urls = %s")
                 params.append(psycopg2.extras.Json(urls_val))
             if eeo_val is not None:
                 set_cols.append("eeo = %s")
                 params.append(psycopg2.extras.Json(eeo_val))
+            if work_exp_val is not None:
+                set_cols.append("work_experience = %s")
+                params.append(psycopg2.extras.Json(work_exp_val))
+            if edu_val is not None:
+                set_cols.append("education = %s")
+                params.append(psycopg2.extras.Json(edu_val))
+            if skills_val is not None:
+                set_cols.append("skills = %s")
+                params.append(psycopg2.extras.Json(skills_val))
+            if certs_val is not None:
+                set_cols.append("certifications = %s")
+                params.append(psycopg2.extras.Json(certs_val))
+            if custom_ans_val is not None:
+                set_cols.append("custom_answers = %s")
+                params.append(psycopg2.extras.Json(custom_ans_val))
+            if languages_val is not None:
+                set_cols.append("languages = %s")
+                params.append(psycopg2.extras.Json(languages_val))
             if set_cols:
                 params.extend([user_id])
                 cur.execute(
@@ -753,10 +1112,19 @@ async def update_user(
                     suffix = "." + resume.filename.rsplit(".", 1)[-1]
             except Exception:
                 suffix = ""
-            with tempfile.NamedTemporaryFile(suffix=suffix or ".pdf") as tmp:
+            # On Windows, NamedTemporaryFile keeps file locked, so use delete=False
+            tmp = tempfile.NamedTemporaryFile(suffix=suffix or ".pdf", delete=False)
+            tmp_path = tmp.name
+            try:
                 tmp.write(content)
-                tmp.flush()
-                resume_text = extract_text(tmp.name) or ""
+                tmp.close()  # Close before reading on Windows
+                resume_text = extract_text(tmp_path) or ""
+            finally:
+                # Clean up temp file
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse resume: {e}")
 
@@ -1221,3 +1589,216 @@ def use_tailored(body: UseTailoredBody, user_id: str = Depends(_current_user)):
     finally:
         _put_conn(conn2)
     return {"ok": True}
+
+
+# ===== Resume Parsing with LLM =====
+
+@app.post("/extract_profile")
+def extract_profile_from_resume(user_id: str = Depends(_current_user)):
+    """
+    Use LLM to extract structured profile data from the user's uploaded resume.
+    Returns work_experience, education, skills, and basic info.
+    """
+    import json as _json
+    
+    # Fetch resume text
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT resume_text FROM resumes WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row or not row[0]:
+                raise HTTPException(status_code=404, detail="No resume found. Please upload a resume first.")
+            resume_text = row[0]
+    finally:
+        _put_conn(conn)
+
+    # Clip resume to avoid token limits
+    resume_clip = _clip_text(resume_text, 6000)
+
+    extraction_prompt = f"""Extract structured information from this resume and return ONLY a valid JSON object (no markdown, no explanation, no code blocks).
+
+Resume:
+{resume_clip}
+
+Return this exact JSON structure with the extracted data:
+{{
+  "first_name": "extracted first name or empty string",
+  "last_name": "extracted last name or empty string",
+  "email": "extracted email or empty string",
+  "phone": "extracted phone number or empty string",
+  "location": "extracted city/location or empty string",
+  "current_company": "most recent employer or empty string",
+  "work_experience": [
+    {{
+      "position": "job title",
+      "company": "company name",
+      "start_date": "MM/YYYY format",
+      "end_date": "MM/YYYY or Current",
+      "details": "bullet points of responsibilities/achievements as a single string"
+    }}
+  ],
+  "education": [
+    {{
+      "degree": "degree type (e.g., Bachelor's, Master's)",
+      "major": "field of study",
+      "institution": "school/university name",
+      "graduation_date": "MM/YYYY format"
+    }}
+  ],
+  "skills": [
+    {{
+      "name": "skill name",
+      "proficiency": "Beginner/Intermediate/Advanced/Expert"
+    }}
+  ],
+  "certifications": [
+    {{
+      "name": "certification name",
+      "issuer": "issuing organization",
+      "date": "MM/YYYY"
+    }}
+  ]
+}}
+
+Extract ALL work experiences, education entries, and skills mentioned. For proficiency, estimate based on context (years of experience, how prominently featured, etc.).
+Return ONLY the JSON object, nothing else."""
+
+    llm_response = _llm_complete(extraction_prompt)
+    
+    if not llm_response:
+        raise HTTPException(status_code=502, detail="LLM failed to process resume. Please try again.")
+
+    # Try to parse JSON from response
+    try:
+        # Clean up common LLM response issues
+        cleaned = llm_response.strip()
+        # Remove markdown code blocks if present
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            # Find the JSON content between ``` markers
+            json_lines = []
+            in_json = False
+            for line in lines:
+                if line.startswith("```") and not in_json:
+                    in_json = True
+                    continue
+                elif line.startswith("```") and in_json:
+                    break
+                elif in_json:
+                    json_lines.append(line)
+            cleaned = "\n".join(json_lines)
+        
+        # Try to find JSON object in the response
+        start_idx = cleaned.find("{")
+        end_idx = cleaned.rfind("}") + 1
+        if start_idx != -1 and end_idx > start_idx:
+            cleaned = cleaned[start_idx:end_idx]
+        
+        extracted = _json.loads(cleaned)
+    except _json.JSONDecodeError as e:
+        # Return partial response for debugging
+        raise HTTPException(status_code=502, detail=f"Failed to parse LLM response as JSON: {str(e)[:100]}. Raw response: {llm_response[:500]}")
+
+    return {
+        "extracted": extracted,
+        "message": "Profile data extracted from resume. Review and save to apply."
+    }
+
+
+class ApplyExtractedBody(BaseModel):
+    extracted: dict
+    merge: Optional[bool] = True  # If True, merge with existing; if False, replace
+
+
+@app.post("/apply_extracted_profile")
+def apply_extracted_profile(body: ApplyExtractedBody, user_id: str = Depends(_current_user)):
+    """
+    Apply the extracted profile data to the user's profile.
+    Can either merge with existing data or replace it.
+    """
+    import json as _json
+    
+    data = body.extracted
+    
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            if body.merge:
+                # Fetch existing data first
+                cur.execute(
+                    """SELECT first_name, last_name, email, phone, location, current_company,
+                       work_experience, education, skills, certifications
+                       FROM users WHERE id = %s""",
+                    (user_id,)
+                )
+                row = cur.fetchone()
+                if row:
+                    existing_work = row[6] or []
+                    existing_edu = row[7] or []
+                    existing_skills = row[8] or []
+                    existing_certs = row[9] or []
+                    
+                    # Merge arrays (add new items that don't seem to already exist)
+                    new_work = data.get("work_experience", [])
+                    new_edu = data.get("education", [])
+                    new_skills = data.get("skills", [])
+                    new_certs = data.get("certifications", [])
+                    
+                    # Simple dedup by checking if company+position already exists
+                    existing_work_keys = {(w.get("company", "").lower(), w.get("position", "").lower()) for w in existing_work}
+                    for w in new_work:
+                        key = (w.get("company", "").lower(), w.get("position", "").lower())
+                        if key not in existing_work_keys:
+                            existing_work.append(w)
+                    
+                    existing_edu_keys = {(e.get("institution", "").lower(), e.get("degree", "").lower()) for e in existing_edu}
+                    for e in new_edu:
+                        key = (e.get("institution", "").lower(), e.get("degree", "").lower())
+                        if key not in existing_edu_keys:
+                            existing_edu.append(e)
+                    
+                    existing_skill_names = {s.get("name", "").lower() for s in existing_skills}
+                    for s in new_skills:
+                        if s.get("name", "").lower() not in existing_skill_names:
+                            existing_skills.append(s)
+                    
+                    existing_cert_names = {c.get("name", "").lower() for c in existing_certs}
+                    for c in new_certs:
+                        if c.get("name", "").lower() not in existing_cert_names:
+                            existing_certs.append(c)
+                    
+                    data["work_experience"] = existing_work
+                    data["education"] = existing_edu
+                    data["skills"] = existing_skills
+                    data["certifications"] = existing_certs
+            
+            # Build update query
+            set_parts = []
+            params = []
+            
+            # Only update fields that are present and non-empty in extracted data
+            simple_fields = ["first_name", "last_name", "email", "phone", "location", "current_company"]
+            for field in simple_fields:
+                val = data.get(field)
+                if val and str(val).strip():
+                    set_parts.append(f"{field} = %s")
+                    params.append(str(val).strip())
+            
+            json_fields = ["work_experience", "education", "skills", "certifications"]
+            for field in json_fields:
+                val = data.get(field)
+                if val and isinstance(val, list) and len(val) > 0:
+                    set_parts.append(f"{field} = %s")
+                    params.append(psycopg2.extras.Json(val))
+            
+            if set_parts:
+                params.append(user_id)
+                cur.execute(
+                    f"UPDATE users SET {', '.join(set_parts)}, updated_at = now() WHERE id = %s",
+                    params
+                )
+    finally:
+        _put_conn(conn)
+    
+    return {"ok": True, "message": "Profile updated with extracted data"}
